@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Testing
+test-results/
+playwright-report/
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Compiled output
+dist/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IDE - JetBrains
+.idea/
+*.iml
+*.iws
+
+# IDE - WebStorm
+.idea/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+*.lnk
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
