@@ -47,9 +47,9 @@ jobs:
       
     - name: Install Docker Compose
       run: |
-        sudo apt-get update
-        sudo apt-get install -y docker-compose-plugin
-        docker compose version
+        sudo curl -L "https://github.com/docker/compose/releases/download/v2.33.1/docker-compose-$(uname -s)-$(uname -m)"  -o /usr/local/bin/docker-compose
+        sudo mv /usr/local/bin/docker-compose /usr/bin/docker-compose
+        sudo chmod +x /usr/bin/docker-compose
     
     - name: Run E2E tests with Docker
       run: make ci-test
