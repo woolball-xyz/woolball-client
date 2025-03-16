@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  e2e-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount these directories to persist test results and reports
+      - ./playwright-report:/app/playwright-report
+      - ./test-results:/app/test-results
+    environment:
+      # Set environment variables for CI mode
+      - CI=true

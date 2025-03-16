@@ -14,12 +14,19 @@
   
   <!-- Expose the library to the window object for testing -->
   <script>
+    // Initialize browserNode object first to ensure it always exists
+    window.browserNode = window.browserNode || {};
+    
     // Make the browser-node API available globally for tests
     // Ensure browserNode is properly exposed even if initialization fails
     try {
       // The library might throw an error during initialization in non-Chrome browsers
       // but we still want to expose its API for testing
-      window.browserNode = browserNode || {};
+      // If the script loaded properly, the global browserNode variable should be defined
+      if (typeof browserNode !== 'undefined' && browserNode !== window.browserNode) {
+        // Copy properties from the loaded browserNode to window.browserNode
+        Object.assign(window.browserNode, browserNode);
+      }
       
       // If browserNode exists but doesn't have the required methods, add them
       // This ensures tests can run in all browsers, even if they'll throw expected errors
