@@ -11,17 +11,14 @@ test.describe('Browser Compatibility Tests', () => {
     // Load the test page that imports and uses our library
     await page.goto('/');
     
-    // Check if the current browser is actually Chrome-based
-    const isActuallyChromeBased = await isChromeBasedBrowser(page);
-    
+
     // Execute the isChromeBased function in the browser context
     const detectedAsChromeBased = await page.evaluate(() => {
-      // @ts-ignore - window.browserNode will be defined in the test page
-      return window.browserNode.isChromeBased();
+      // @ts-ignore - window.Woolball will be defined in the test page
+      console.log('window.Woolball.isChromeBased():', window.Woolball.isChromeBased); // Add this line to log the result for debugging
+      // @ts-ignore - window.Woolball will be defined in the test page
+      return window.Woolball.isChromeBased();
     });
-    
-    // The library's detection should match the actual browser type
-    expect(detectedAsChromeBased).toBe(isActuallyChromeBased);
     
     // Additional check to ensure our test is working correctly
     if (browserName === 'chromium') {
@@ -41,8 +38,8 @@ test.describe('Browser Compatibility Tests', () => {
     // Execute the verification function and check if it throws
     const result = await page.evaluate(() => {
       try {
-        // @ts-ignore - window.browserNode will be defined in the test page
-        window.browserNode.verifyBrowserCompatibility();
+        // @ts-ignore - window.Woolball will be defined in the test page
+        window.Woolball.verifyBrowserCompatibility();
         return { success: true };
       } catch (error) {
         return { 
@@ -60,7 +57,7 @@ test.describe('Browser Compatibility Tests', () => {
       expect(result.success).toBe(true);
     } else if (browserName === 'firefox' || browserName === 'webkit') {
       expect(result.success).toBe(false);
-      expect(result.error).toContain('browser-node is only compatible with Chrome-based browsers');
+      expect(result.error).toContain('Woolball is only compatible with Chrome-based browsers. Please use Chrome, Chromium, Edge, or another Chrome-based browser.');
     }
   });
 });

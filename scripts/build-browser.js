@@ -19,8 +19,8 @@ execSync('npm run build', { stdio: 'inherit' });
 // Create a simple browser bundle using esbuild
 console.log('Creating browser bundle...');
 execSync(
-  'npx esbuild dist/index.js --bundle --global-name=browserNode --outfile=dist/browser-node.js',
+  'npx esbuild dist/index.js --bundle --format=esm --outfile=dist/woolball.js',
   { stdio: 'inherit' }
 );
 
-console.log('Browser bundle created at dist/browser-node.js');
+console.log('Browser bundle created at dist/woolball.js');

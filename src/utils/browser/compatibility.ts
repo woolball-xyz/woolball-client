@@ -38,7 +38,7 @@ export function isChromeBased(): boolean {
 export function verifyBrowserCompatibility(): void {
   if (!isChromeBased()) {
     throw new BrowserCompatibilityError(
-      'browser-node is only compatible with Chrome-based browsers. ' +
+      'woolball is only compatible with Chrome-based browsers. ' +
       'Please use Chrome, Chromium, Edge, or another Chrome-based browser.'
     );
   }

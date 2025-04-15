@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Speech to Text Test Page</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .result {
+      min-height: 100px;
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .file-input {
+      margin-bottom: 10px;
+    }
+    .status {
+      font-style: italic;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h1>Speech to Text Demo</h1>
+  <p>Esta página é usada para testes E2E da funcionalidade de conversão de áudio para texto.</p>
+  
+  <div class="container">
+    <div class="card">
+      <h2>Carregar Arquivo de Áudio</h2>
+      <div class="file-input">
+        <input type="file" id="audioFile" accept="audio/*"/>
+      </div>
+      <button id="convertBtn" disabled>Converter para Texto</button>
+      <p class="status" id="status">Selecione um arquivo de áudio para começar.</p>
+    </div>
+    
+    <div class="card">
+      <h2>Resultado</h2>
+      <div class="result" id="result">O texto convertido aparecerá aqui.</div>
+    </div>
+  </div>
+
+  <!-- Script da aplicação -->
+  <script type="module">
+    /**
+     * Script para testes E2E da funcionalidade de conversão de áudio para texto
+     */
+    import Woolball from '../../dist/woolball.js';
+
+    // Elementos da interface
+    const audioFileInput = document.getElementById('audioFile');
+    const convertBtn = document.getElementById('convertBtn');
+    const statusElement = document.getElementById('status');
+    const resultElement = document.getElementById('result');
+
+    // Converter o arquivo de áudio para base64
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = error => reject(error);
+      });
+    }
+
+    // Inicializar os eventos da interface
+    async function initEvents() {
+      // Tentar carregar o arquivo input.wav automaticamente
+      try {
+        const response = await fetch('/input.wav');
+        if (response.ok) {
+          const blob = await response.blob();
+          const file = new File([blob], 'input.wav', { type: 'audio/wav' });
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(file);
+          audioFileInput.files = dataTransfer.files;
+          convertBtn.disabled = false;
+          statusElement.textContent = 'Arquivo input.wav carregado automaticamente';
+        }
+      } catch (error) {
+        console.log('Arquivo input.wav não encontrado, aguardando seleção manual');
+      }
+      
+      // Habilitar o botão quando um arquivo for selecionado
+      audioFileInput.addEventListener('change', function() {
+        convertBtn.disabled = !this.files.length;
+        if (this.files.length) {
+          statusElement.textContent = `Arquivo selecionado: ${this.files[0].name}`;
+        } else {
+          statusElement.textContent = 'Selecione um arquivo de áudio para começar.';
+        }
+      });
+      
+      // Processar o arquivo quando o botão for clicado
+      convertBtn.addEventListener('click', async function() {
+        if (!audioFileInput.files.length) return;
+        
+        try {
+          const file = audioFileInput.files[0];
+          convertBtn.disabled = true;
+          statusElement.textContent = 'Converting audio to text...';
+          resultElement.textContent = 'Processing...';
+          
+          const base64Audio = await fileToBase64(file);
+          const INPUT = {
+            key: "speech-to-text",
+            value: JSON.stringify({
+              id: Date.now().toString(),
+              input: base64Audio,
+              // model: "onnx-community/whisper-large-v3-turbo_timestamped",
+              // dtype: "q8",
+              language: "pt",
+            })
+          }
+          const woolball = new Woolball.default();
+          const result = await woolball.processEvent(INPUT);
+          
+          // Processar o resultado
+          resultElement.textContent = JSON.stringify(result, null, 2);
+          statusElement.textContent = 'Conversão concluída!';
+          convertBtn.disabled = false; // Habilita o botão após a conclusão
+        } catch (error) {
+          statusElement.textContent = `Erro: ${error.message}`;
+          console.error('Error processing audio:', error);
+          convertBtn.disabled = false; // Habilita o botão após erro
+        }
+      });
+    }
+
+    // Inicializar a aplicação
+    document.addEventListener('DOMContentLoaded', function() {
+      initEvents();
+    });
+  </script>
+</body>
+</html>

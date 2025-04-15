@@ -1,13 +1,16 @@
 /**
- * Simple HTTP server for serving the test page and library files
- * Used by Playwright for e2e testing
+ * Simple HTTP server for serving the test page, demo page and library files
+ * Used by Playwright for e2e testing and for the demo application
  */
 
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 3000;
+// Get the mode and port from command line arguments
+const args = process.argv.slice(2);
+const mode = args[0] || 'test';
+const PORT = args[1] || process.env.PORT || 3000;
 
 // MIME types for different file extensions
 const MIME_TYPES = {
@@ -24,10 +27,15 @@ const MIME_TYPES = {
 const server = http.createServer((req, res) => {
   console.log(`Request: ${req.method} ${req.url}`);
   
-  // Default to index.html for root path
-  let filePath = req.url === '/' 
-    ? './e2e-tests/test-page/index.html' 
-    : '.' + req.url;
+  // Default to index.html for root path based on mode
+  let filePath;
+  if (req.url === '/') {
+    filePath = mode === 'demo' 
+      ? './demo/index.html' 
+      : './e2e-tests/test-page/index.html';
+  } else {
+    filePath = '.' + req.url;
+  }
   
   // Get the file extension
   const extname = path.extname(filePath);

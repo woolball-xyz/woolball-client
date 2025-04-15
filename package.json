@@ -1,5 +1,5 @@
 {
-  "name": "browser-node",
+  "name": "woolball",
   "version": "0.1.0",
   "description": "A library that provides Node.js-like APIs for browsers",
   "main": "dist/index.js",
@@ -10,10 +10,14 @@
   "scripts": {
     "build": "tsc",
     "build:browser": "node scripts/build-browser.js",
+    "build:worker": "node scripts/build-worker.js",
+    "build:all": "npm run build && npm run build:browser && npm run build:worker",
     "prepare": "npm run build",
     "test": "jest",
     "test:e2e": "playwright test",
-    "serve": "node scripts/serve.js"
+    "serve": "node scripts/serve.js",
+    "serve:demo": "node scripts/serve.js demo",
+    "serve:demo:port": "node scripts/serve.js demo"
   },
   "repository": {
     "type": "git",
@@ -40,5 +44,9 @@
     "playwright": "^1.51.0",
     "ts-jest": "^29.2.6",
     "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.4.2",
+    "wavefile": "^11.0.0"
   }
 }

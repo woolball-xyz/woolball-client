@@ -3,49 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Browser-Node Test Page</title>
+  <title>Woolball Test Page</title>
 </head>
 <body>
-  <h1>Browser-Node Test Page</h1>
-  <p>This page is used for Playwright e2e testing of the browser-node library.</p>
+  <h1>Woolball Test Page</h1>
+  <p>This page is used for Playwright e2e testing of the Woolball library.</p>
   
-  <!-- Load the browser-node library -->
-  <script src="/dist/browser-node.js"></script>
+  <!-- Load the Woolball library -->
+  <script src="/dist/Woolball.js"></script>
   
   <!-- Expose the library to the window object for testing -->
   <script>
-    // Initialize browserNode object first to ensure it always exists
-    window.browserNode = window.browserNode || {};
+    // Initialize Woolball object first to ensure it always exists
+    window.Woolball = window.Woolball || {};
     
-    // Make the browser-node API available globally for tests
-    // Ensure browserNode is properly exposed even if initialization fails
+    // Make the Woolball API available globally for tests
+    // Ensure Woolball is properly exposed even if initialization fails
     try {
       // The library might throw an error during initialization in non-Chrome browsers
       // but we still want to expose its API for testing
-      // If the script loaded properly, the global browserNode variable should be defined
-      if (typeof browserNode !== 'undefined' && browserNode !== window.browserNode) {
-        // Copy properties from the loaded browserNode to window.browserNode
-        Object.assign(window.browserNode, browserNode);
+      // If the script loaded properly, the global Woolball variable should be defined
+      if (typeof Woolball !== 'undefined' && Woolball !== window.Woolball) {
+        // Copy properties from the loaded Woolball to window.Woolball
+        Object.assign(window.Woolball, Woolball);
       }
       
-      // If browserNode exists but doesn't have the required methods, add them
+      // If Woolball exists but doesn't have the required methods, add them
       // This ensures tests can run in all browsers, even if they'll throw expected errors
-      if (!window.browserNode.isChromeBased) {
-        window.browserNode.isChromeBased = function() {
+      if (!window.Woolball.isChromeBased) {
+        window.Woolball.isChromeBased = function() {
           return false; // Default for browsers where the real function isn't available
         };
       }
       
-      if (!window.browserNode.verifyBrowserCompatibility) {
-        window.browserNode.verifyBrowserCompatibility = function() {
-          throw new Error('browser-node is only compatible with Chrome-based browsers. Please use Chrome, Chromium, Edge, or another Chrome-based browser.');
+      if (!window.Woolball.verifyBrowserCompatibility) {
+        window.Woolball.verifyBrowserCompatibility = function() {
+          throw new Error('Woolball is only compatible with Chrome-based browsers. Please use Chrome, Chromium, Edge, or another Chrome-based browser.');
         };
       }
       
       // Add console logging to help with debugging
-      console.log('Browser-Node loaded:', window.browserNode);
+      console.log('Woolball loaded:', window.Woolball);
     } catch (error) {
-      console.error('Error initializing Browser-Node:', error);
+      console.error('Error initializing Woolball:', error);
     }
   </script>
 </body>

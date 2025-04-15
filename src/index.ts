@@ -1,14 +1,6 @@
-/**
- * browser-node library
- * Provides Node.js-like APIs for Chrome-based browsers
- */
 
-// Import browser compatibility utilities
-import { initBrowserCompatibility, isChromeBased, verifyBrowserCompatibility } from './utils/browser';
+import Woolball  from "./models/Woolball";
 
-// Initialize browser compatibility check
-initBrowserCompatibility();
+export {verifyBrowserCompatibility} from './utils';
 
-// Export browser compatibility utilities for use in browser environments
-export { isChromeBased, verifyBrowserCompatibility };
-
+export default Woolball;
