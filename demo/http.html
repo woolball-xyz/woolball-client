@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTTP Demo - Speech to Text</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .result {
+      white-space: pre-wrap;
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .status {
+      color: #666;
+      margin-top: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #ccc;
+    }
+    .checkbox-group {
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h2>Audio Input</h2>
+      <input type="file" id="audioFile" accept="audio/*">
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" id="timestampCheckbox">
+          Include timestamps
+        </label>
+        <label>
+          <input type="checkbox" id="streamCheckbox">
+          Enable streaming
+        </label>
+        <br>
+        <label>
+            Language
+            <input type="text" id="languageInput" placeholder="Language" value="en">
+        </label>
+        <br>
+        <label>
+            Model
+            <input type="text" id="modelInput" placeholder="Model" value="onnx-community/whisper-large-v3-turbo_timestamped">
+        </label>
+        <br>
+        <label>
+            Dtype
+          <input type="text" id="dtypeInput" placeholder="Dtype" value="q4">
+        </label>
+      </div>
+      <button id="convertBtn" disabled>Convert to Text</button>
+      <p class="status" id="status">Select an audio file to start.</p>
+    </div>
+    
+    <div class="card">
+      <h2>Result</h2>
+      <div class="result" id="result">The converted text will appear here.</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { HttpClient } from './http-client.js';
+
+    const API_URL = 'http://localhost:9002';
+
+    // Elementos da interface
+    const audioFileInput = document.getElementById('audioFile');
+    const convertBtn = document.getElementById('convertBtn');
+    const statusElement = document.getElementById('status');
+    const resultElement = document.getElementById('result');
+    const timestampCheckbox = document.getElementById('timestampCheckbox');
+    const streamCheckbox = document.getElementById('streamCheckbox');
+    const languageInput = document.getElementById('languageInput');
+    const modelInput = document.getElementById('modelInput');
+    const dtypeInput = document.getElementById('dtypeInput');
+
+    // Inicializar o cliente HTTP
+    const httpClient = new HttpClient(API_URL);
+
+    // Habilitar o botão quando um arquivo for selecionado
+    // Enable button when a file is selected
+    audioFileInput.addEventListener('change', function() {
+      convertBtn.disabled = !this.files.length;
+      if (this.files.length) {
+        statusElement.textContent = `File selected: ${this.files[0].name}`;
+      } else {
+        statusElement.textContent = 'Select an audio file to start.';
+      }
+    });
+
+    // Processar o arquivo quando o botão for clicado
+    // Process the file when the button is clicked
+    convertBtn.addEventListener('click', async function() {
+      if (!audioFileInput.files.length) return;
+      
+      try {
+        const file = audioFileInput.files[0];
+        convertBtn.disabled = true;
+        statusElement.textContent = 'Sending audio for processing...';
+        resultElement.textContent = 'Processing...';
+
+        const response = await httpClient.processAudio(file, {
+          timestamps: timestampCheckbox.checked,
+          stream: streamCheckbox.checked,
+          language: languageInput.value,
+          model: modelInput.value,
+          dtype: dtypeInput.value
+        });
+
+        if (streamCheckbox.checked) {
+          statusElement.textContent = 'Streaming results...';
+          resultElement.textContent = '';
+
+          await httpClient.handleStreamResponse(response, (chunk) => {
+            statusElement.textContent = 'Streaming results...';
+            resultElement.textContent += chunk;
+          });
+
+          statusElement.textContent = 'Conversion completed!';
+          convertBtn.disabled = false;
+        } else {
+          const results = await response.json();
+          statusElement.textContent = 'Success...';
+          resultElement.textContent = JSON.stringify(results, null, 2);
+          convertBtn.disabled = false;
+        }
+      } catch (error) {
+        statusElement.textContent = `Error: ${error.message}`;
+        console.error('Error processing audio:', error);
+        convertBtn.disabled = false;
+      }
+    });
+
+    // Carregar o arquivo de áudio padrão
+    // Load the default audio file
+    async function loadDefaultAudio() {
+      const file = await httpClient.loadDefaultAudio();
+      if (file) {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        audioFileInput.files = dataTransfer.files;
+        convertBtn.disabled = false;
+        statusElement.textContent = 'File input.wav loaded automatically';
+      }
+    }
+
+    // Inicializar a aplicação
+    // Initialize the application
+    document.addEventListener('DOMContentLoaded', function() {
+      loadDefaultAudio();
+    });
+  </script>
+</body>
+</html>

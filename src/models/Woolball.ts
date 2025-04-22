@@ -3,15 +3,29 @@ import { WebSocketMessage, WorkerEvent } from "../utils/websocket";
 
 
 
+type TaskStatus = 'started' | 'success' | 'error';
+
+type TaskEventData = {
+    id: string;
+    type: string;
+    status: TaskStatus;
+};
+
+type EventListener = (data: TaskEventData) => void;
+
 class Woolball {
     private workers: Map<string, Worker>;
     private wsConnection: WebSocket | null = null;
     private clientId: string;
+    private eventListeners: Map<TaskStatus, Set<EventListener>> = new Map();
 
     constructor(id : string, url = 'ws://localhost:9003/ws') {
         verifyBrowserCompatibility();
         this.workers = new Map();
         this.clientId = id;
+        this.eventListeners.set('started', new Set());
+        this.eventListeners.set('success', new Set());
+        this.eventListeners.set('error', new Set());
         this.registerWorkers();
 
         //validate available models, talk with Alex (mrs pizzas)
@@ -51,8 +65,41 @@ class Woolball {
             return;
         }
         
-        try {          
+        try {         
+            this.emitEvent('started', {
+                id: Id,
+                type: Key,
+                status: 'started'
+            });
+             
             const response = await this.processEvent(Key, Value);
+            
+            if(response.error) {
+                
+                const errorData = {
+                    id: Id,
+                    type: Key,
+                    status: 'error' as TaskStatus,
+                };
+
+                this.emitEvent('error', errorData);
+                
+                this.sendWebSocketMessage({
+                    type: 'ERROR',
+                    data: {
+                        requestId: Id,
+                        error: response.error,
+                    }
+                });
+                return;
+            }
+
+            this.emitEvent('success', {
+                id: Id,
+                type: Key,
+                status: 'success',
+            });
+
             this.sendWebSocketMessage({
                 type: 'PROCESS_RESULT',
                 data: {
@@ -122,6 +169,27 @@ class Woolball {
             worker.addEventListener('error', errorHandler);
             worker.postMessage(value);
         });
+    }
+
+    public on(status: TaskStatus, listener: EventListener): void {
+        const listeners = this.eventListeners.get(status);
+        if (listeners) {
+            listeners.add(listener);
+        }
+    }
+
+    public off(status: TaskStatus, listener: EventListener): void {
+        const listeners = this.eventListeners.get(status);
+        if (listeners) {
+            listeners.delete(listener);
+        }
+    }
+
+    private emitEvent(status: TaskStatus, data: TaskEventData): void {
+        const listeners = this.eventListeners.get(status);
+        if (listeners) {
+            listeners.forEach(listener => listener(data));
+        }
     }
 }
 

@@ -31,17 +31,14 @@ export const process = async ({data}: MessageEvent) => {
                 rest[key] = false;
             }
         }
-        console.log(rest);
 
         const result = await pipe(samples, rest);
-
-        console.log(result);
 
         self.postMessage(result);
     }
     catch(e){
         console.log(e);
-        self.postMessage(({id:id, error: e}));
+        self.postMessage(({error: e}));
     }
 };
 
