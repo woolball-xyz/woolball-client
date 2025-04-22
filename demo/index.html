@@ -64,7 +64,15 @@
       <div class="file-input">
         <input type="file" id="audioFile" accept="audio/*"/>
       </div>
-      <button id="convertBtn" disabled>Converter para Texto</button>
+      <div style="margin: 10px 0;">
+  <label>
+    <input type="checkbox" id="timestampCheckbox" checked> Return timestamps
+  </label>
+  <label style="margin-left: 10px;">
+    <input type="checkbox" id="streamCheckbox" checked> Stream results
+  </label>
+</div>
+<button id="convertBtn" disabled>Converter para Texto</button>
       <p class="status" id="status">Selecione um arquivo de áudio para começar.</p>
     </div>
     

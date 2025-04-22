@@ -4,29 +4,43 @@
  */
 import Woolball from '../dist/woolball.js';
 
+const API_URL = 'http://localhost:9002'
 
 // Elementos da interface
 const audioFileInput = document.getElementById('audioFile');
 const convertBtn = document.getElementById('convertBtn');
 const statusElement = document.getElementById('status');
 const resultElement = document.getElementById('result');
+const timestampCheckbox = document.getElementById('timestampCheckbox');
+const streamCheckbox = document.getElementById('streamCheckbox');
 
-
-// Converter o arquivo de áudio para base64
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const base64 = reader.result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = error => reject(error);
-  });
-}
 
 // Inicializar os eventos da interface
 async function initEvents() {
+  // Inicializar o Woolball para receber os resultados via WebSocket
+  const woolball = new Woolball.default();
+    
+  // Configurar um listener para receber os resultados do processamento via WebSocket
+  woolball.wsConnection.addEventListener('message', (event) => {
+    try {
+      if(event.data === 'ping') {
+        return;
+      }
+      const data = JSON.parse(event.data);
+      if (data.type === 'speech-to-text-result') {
+        if (streamCheckbox.checked) {
+          resultElement.textContent += JSON.stringify(data.result, null, 2) + '\n';
+        } else {
+          resultElement.textContent = JSON.stringify(data.result, null, 2);
+        }
+        statusElement.textContent = 'Conversão concluída!';
+        convertBtn.disabled = false; 
+      }
+    } catch (error) {
+      console.error('Erro ao processar mensagem do WebSocket:', error);
+    }
+  });
+
   // Tentar carregar o arquivo input.wav automaticamente
   try {
     const response = await fetch('/demo/input.wav');
@@ -59,31 +73,56 @@ async function initEvents() {
     try {
       const file = audioFileInput.files[0];
       convertBtn.disabled = true;
-      statusElement.textContent = 'Convertendo áudio para texto...';
+      statusElement.textContent = 'Enviando áudio para processamento...';
       resultElement.textContent = 'Processando...';
       
-      const base64Audio = await fileToBase64(file);
-      const INPUT = {
-        key: "speech-to-text",
-        value: JSON.stringify({
-          id: Date.now().toString(),
-          input: base64Audio,
-          model: "onnx-community/whisper-large-v3-turbo_timestamped",
-          dtype: "q8",
-          language: "en",
-        })
-      }
-      const woolball = new Woolball.default();
-      const result = await woolball.processEvent(INPUT);
+      // Criar um FormData para enviar o arquivo para a API
+      const formData = new FormData();
+      formData.append('input', file);
+      formData.append('model', 'onnx-community/whisper-large-v3-turbo_timestamped');
+      formData.append('dtype', 'q4');
+      formData.append('language', 'pt');
+      formData.append('return_timestamps', timestampCheckbox.checked ? 'true' : 'false');
+      formData.append('stream', streamCheckbox.checked ? 'true' : 'false');
       
-      // Processar o resultado
-      resultElement.textContent = JSON.stringify(result, null, 2);
-      statusElement.textContent = 'Conversão concluída!';
-      convertBtn.disabled = false; // Habilita o botão após a conclusão
-    } catch (error) {
+      // Enviar o arquivo para a API
+      const response = await fetch(`${API_URL}/api/v1/speech-recognition`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro na API: ${response.status} ${response.statusText}`);
+      }
+      if (streamCheckbox.checked) {
+        statusElement.textContent = 'Streaming results...';
+        resultElement.textContent = '';
+
+
+
+        await response.body
+        .pipeThrough(new TextDecoderStream())
+        .pipeTo(new WritableStream({
+          write(chunk) {
+            statusElement.textContent = 'Streaming results...';
+            resultElement.textContent += chunk;
+          },
+        }))
+
+        statusElement.textContent = 'Conversão concluída!';
+        convertBtn.disabled = false;
+        
+      } else {
+        const results = await response.json();
+        statusElement.textContent = 'Sucesso...';
+        resultElement.textContent = JSON.stringify(results);
+        convertBtn.disabled = false;
+      }
+      
+          } catch (error) {
       statusElement.textContent = `Erro: ${error.message}`;
       console.error('Error processing audio:', error);
-      convertBtn.disabled = false; // Habilita o botão após erro
+      convertBtn.disabled = false; 
     }
   });
 }

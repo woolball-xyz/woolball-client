@@ -7,4 +7,7 @@
 // Export browser utilities
 export * from './browser';
 
+// Export WebSocket utilities
+export * from './websocket';
+
 // Additional utility exports can be added here as needed

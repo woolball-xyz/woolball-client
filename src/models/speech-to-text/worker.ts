@@ -4,15 +4,15 @@ import { processAudio } from '../../utils/media';
  * Process audio data and convert it to text using Hugging Face transformers
  * @param event MessageEvent containing audio data and model configuration
  */
-export const process = async (event: MessageEvent) => {
-    const dictionary = JSON.parse(event.data);
+export const process = async ({data}: MessageEvent) => {
+   
     const {
         id,
         input,
         dtype,
         model,
         ...rest 
-    } = dictionary;
+    } = data;
     try{
 
         
@@ -21,19 +21,27 @@ export const process = async (event: MessageEvent) => {
         const pipe = await pipeline('automatic-speech-recognition', model, {
             dtype: dtype,
             device: 'webgpu',
-            
         });
         
-        const result = await pipe(samples, rest);
-        
-        const composition = {
-            id: id,
-            result: result,
+        for (const key in rest) {
+            if (rest[key] === 'true') {
+                rest[key] = true;
+            }
+            if (rest[key] === 'false') {
+                rest[key] = false;
+            }
         }
-        self.postMessage(JSON.stringify(composition));
+        console.log(rest);
+
+        const result = await pipe(samples, rest);
+
+        console.log(result);
+
+        self.postMessage(result);
     }
     catch(e){
-        self.postMessage(JSON.stringify({id:id, error:e}));
+        console.log(e);
+        self.postMessage(({id:id, error: e}));
     }
 };
 
