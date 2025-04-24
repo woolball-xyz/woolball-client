@@ -9,19 +9,10 @@ const generateCacheKey = (task: string, model: string, dtype: string): string =>
 };
 
 
-const discardPipeline = async (key: string) => {
-    const cachedItem = pipelineCache.get(key);
-    if (cachedItem) {
-        await cachedItem.pipe.dispose(); 
-        console.log("should decrease memory usage")
-        pipelineCache.delete(key);
-    }
-};
-
 const getPipeline = async (task: any, model: string, dtype: any): Promise<any> => {
     const key = generateCacheKey(task, model, dtype);
     let cachedItem = pipelineCache.get(key);
-
+    
     if (cachedItem) {
         clearTimeout(cachedItem.timerId);
     } else {
@@ -35,8 +26,8 @@ const getPipeline = async (task: any, model: string, dtype: any): Promise<any> =
     }
 
     cachedItem.timerId = setTimeout(async () => {
-        console.log(`Inactivity timeout reached for pipeline ${key}. Discarding...`);
-        await discardPipeline(key);
+        await cachedItem.pipe.dispose(); 
+        pipelineCache.delete(key);
     }, INACTIVITY_TIMEOUT);
 
     return cachedItem.pipe;
