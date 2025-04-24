@@ -22,8 +22,10 @@ export class HttpClient {
   }
 
   async processAudio(file, options) {
+    
     const formData = new FormData();
     formData.append('input', file);
+    formData.append('task', 'automatic-speech-recognition');
     formData.append('model', options.model);
     formData.append('dtype', options.dtype);
     formData.append('language', options.language);

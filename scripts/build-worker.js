@@ -13,10 +13,10 @@ if (!fs.existsSync('dist')) {
 }
 
 // Create a simple browser bundle for the worker using esbuild
-console.log('Creating speech-to-text worker bundle...');
+console.log('Creating transformers-js worker bundle...');
 execSync(
-  'npx esbuild src/models/speech-to-text/worker.ts --bundle --outfile=dist/worker-speech-to-text.js',
+  'npx esbuild src/providers/transformers-js/worker.ts --bundle --outfile=dist/transformers-js.js',
   { stdio: 'inherit' }
 );
 
-console.log('Worker bundle created at dist/worker-speech-to-text.js');
+console.log('Worker bundle created at dist/transformers-js.js');

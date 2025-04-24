@@ -133,7 +133,7 @@ class Woolball {
     private registerWorkers() {
         try {
             if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
-                const workerPath = '/dist/worker-speech-to-text.js';
+                const workerPath = '/dist/transformers-js.js';
                 const speechToTextWorker = new Worker(workerPath);
                 this.workers.set('speech-recognition', speechToTextWorker);
 

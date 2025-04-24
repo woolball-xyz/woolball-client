@@ -2,7 +2,7 @@
  * Unit tests for the Woolball class
  */
 
-import Woolball from '../models/Woolball';
+import Woolball from '../providers/Woolball';
 import { MockWorker, setupWorkerMock, cleanupWorkerMock } from './mocks/worker-mock';
 
 // Setup worker mocks before tests
@@ -32,7 +32,7 @@ describe('Woolball', () => {
   
   test('should register workers on initialization', () => {
     // Act
-    const woolball = new Woolball();
+    const woolball = new Woolball('1');
     
     // Assert - Check if the worker was registered with the correct path
     // @ts-ignore - Accessing private property for testing
@@ -41,12 +41,12 @@ describe('Woolball', () => {
     const worker = woolball.workers.get('speech-to-text');
     expect(worker).toBeInstanceOf(MockWorker);
     // Cast to unknown first to avoid TypeScript error
-    expect((worker as unknown as MockWorker).url).toBe('/dist/worker-speech-to-text.js');
+    expect((worker as unknown as MockWorker).url).toBe('/dist/transformers-js.js');
   });
   
   test('should process events and return results', async () => {
     // Arrange
-    const woolball = new Woolball();
+    const woolball = new Woolball('1');
     const event = {
       key: 'speech-to-text',
       value: JSON.stringify({
@@ -57,7 +57,7 @@ describe('Woolball', () => {
     };
     
     // Act
-    const result = await woolball.processEvent(event);
+    const result = await woolball.processEvent('automatic-speech-recognition',event);
     
     // Assert
     expect(result).toEqual({ result: 'mocked result' });
@@ -65,21 +65,21 @@ describe('Woolball', () => {
   
   test('should throw error when worker not found', async () => {
     // Arrange
-    const woolball = new Woolball();
+    const woolball = new Woolball('1');
     const event = {
       key: 'non-existent-worker',
       value: 'test'
     };
     
     // Act & Assert
-    await expect(woolball.processEvent(event)).rejects.toThrow(
+    await expect(woolball.processEvent('automatic-speech-recognition',event)).rejects.toThrow(
       'Worker not found for key: non-existent-worker'
     );
   });
   
   test('should handle worker errors', async () => {
     // Arrange
-    const woolball = new Woolball();
+    const woolball = new Woolball('1');
     const event = {
       key: 'speech-to-text',
       value: 'test'
@@ -107,7 +107,7 @@ describe('Woolball', () => {
     
     // Act & Assert
     // O processEvent deve rejeitar a Promise com o errorEvent
-    await expect(woolball.processEvent(event)).rejects.toEqual(
+    await expect(woolball.processEvent('automatic-speech-recognition',event)).rejects.toEqual(
       expect.objectContaining({
         error: workerError
       })

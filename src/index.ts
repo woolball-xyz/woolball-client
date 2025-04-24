@@ -1,5 +1,5 @@
 
-import Woolball  from "./models/Woolball";
+import Woolball  from "./providers/Woolball";
 
 export {verifyBrowserCompatibility} from './utils';
 
