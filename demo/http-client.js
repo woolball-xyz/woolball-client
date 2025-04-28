@@ -1,6 +1,4 @@
-/**
- * Cliente HTTP para processamento de arquivos de áudio
- */
+// HTTP client for audio file processing
 
 export class HttpClient {
   constructor(apiUrl) {
@@ -16,7 +14,7 @@ export class HttpClient {
       }
       return null;
     } catch (error) {
-      console.log('Arquivo input.wav não encontrado, aguardando seleção manual');
+      console.log('input.wav file not found, waiting for manual selection');
       return null;
     }
   }
@@ -38,7 +36,7 @@ export class HttpClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Erro na API: ${response.status} ${response.statusText}`);
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
     }
 
     return response;

@@ -99,10 +99,7 @@
     const modelInput = document.getElementById('modelInput');
     const dtypeInput = document.getElementById('dtypeInput');
 
-    // Inicializar o cliente HTTP
-    const httpClient = new HttpClient(API_URL);
-
-    // Habilitar o botão quando um arquivo for selecionado
+    const httpClient = new HttpClient(API_URL);    
     // Enable button when a file is selected
     audioFileInput.addEventListener('change', function() {
       convertBtn.disabled = !this.files.length;
@@ -112,7 +109,7 @@
         statusElement.textContent = 'Select an audio file to start.';
       }
     });
-
+    
     // Processar o arquivo quando o botão for clicado
     // Process the file when the button is clicked
     convertBtn.addEventListener('click', async function() {
@@ -156,7 +153,6 @@
       }
     });
 
-    // Carregar o arquivo de áudio padrão
     // Load the default audio file
     async function loadDefaultAudio() {
       const file = await httpClient.loadDefaultAudio();
@@ -169,7 +165,6 @@
       }
     }
 
-    // Inicializar a aplicação
     // Initialize the application
     document.addEventListener('DOMContentLoaded', function() {
       loadDefaultAudio();

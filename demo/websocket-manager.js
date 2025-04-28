@@ -16,7 +16,7 @@ export class WebSocketManager {
   }
 
   connect() {
-    this.woolball.connect(); // assume método que inicia WS
+    this.woolball.connect(); 
   }
 
   getEmoji(type) {
@@ -31,7 +31,7 @@ export class WebSocketManager {
   renderEvent({ id, type, status }) {
     let card = this.eventsMap.get(id);
 
-    // Cria um novo card se não existir
+    // Create a new card if it doesn't exist
     if (!card) {
       card = document.createElement('div');
       card.classList.add('event-card');
