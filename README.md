@@ -1,19 +1,35 @@
-# browser-node
+# WoolBall Browser-node Lib + Demo Application
 
-a library that allows a browser to act as an AI processing node
+## How to use
 
-## Installation
+### Prerequisites
+
+Before running the demo application, you need to build the `browser-node` package and the speech-to-text worker:
 
 ```bash
-npm install browser-node
+npm run build:all
 ```
 
-## Usage
+This command will:
+1. Compile the TypeScript code
+2. Create the browser-node bundle
+3. Create the speech-to-text worker bundle
 
-```javascript
-// Usage examples will be added later
+### Running the application
+
+To start the demo server:
+
+```bash
+npm run serve:demo
 ```
 
-## License
+This will start an HTTP server on port 3000. Access the application in your browser:
 
-MIT
+```
+http://localhost:3000/demo/websocket.html
+
+http://localhost:3000/demo/http.html
+```
+For both to work, the server must be running:
+
+https://github.com/woolball-xyz/browser-network-server
