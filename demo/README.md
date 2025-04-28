@@ -1,6 +1,4 @@
-# Demo Application for WoolBall browser-node
-
-This application serves as a test client to validate the functionalities of the `browser-node` package, specifically the speech-to-text conversion feature using the implemented worker.
+# WoolBall Browser-node Lib + Demo Application
 
 ## How to use
 
