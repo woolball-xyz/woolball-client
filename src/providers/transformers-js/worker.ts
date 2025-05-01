@@ -26,7 +26,9 @@ const getPipeline = async (task: any, model: string, dtype: any): Promise<any> =
     }
 
     cachedItem.timerId = setTimeout(async () => {
-        await cachedItem.pipe.dispose(); 
+        if (cachedItem && cachedItem.pipe) {
+            await cachedItem.pipe.dispose();
+        }
         pipelineCache.delete(key);
     }, INACTIVITY_TIMEOUT);
 

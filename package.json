@@ -1,12 +1,15 @@
 {
-  "name": "woolball",
-  "version": "0.1.0",
-  "description": "A library that provides Node.js-like APIs for browsers",
+  "name": "woolball-client",
+  "version": "0.1.10",
+  "description": "Client-side library for Woolball enabling secure browser resource sharing for distributed AI task processing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
-  ],
+    "dist/**/*"
+  ],  
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "build:browser": "node scripts/build-browser.js",
@@ -17,24 +20,27 @@
     "test:e2e": "playwright test",
     "serve": "node scripts/serve.js",
     "serve:demo": "node scripts/serve.js demo",
-    "serve:demo:port": "node scripts/serve.js demo"
+    "serve:demo:port": "node scripts/serve.js demo",
+    "upgrade": "node scripts/upgrade.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/woolball-xyz/browser-node.git"
+    "url": "git+https://github.com/eduardoworrel/woolball-client.git"
   },
   "keywords": [
-    "browser",
-    "node",
-    "compatibility",
-    "polyfill"
+    "woolball",
+    "distributed-computing",
+    "ai-processing",
+    "browser-resources",
+    "wasm",
+    "webgpu"
   ],
-  "author": "",
+  "author": "Eduardo Worrel",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/woolball-xyz/browser-node/issues"
+    "url": "https://github.com/eduardoworrel/woolball-client/issues"
   },
-  "homepage": "https://github.com/woolball-xyz/browser-node#readme",
+  "homepage": "https://github.com/eduardoworrel/woolball-client#readme",
   "devDependencies": {
     "@playwright/test": "^1.51.0",
     "@types/jest": "^29.5.14",
@@ -48,5 +54,9 @@
   "dependencies": {
     "@huggingface/transformers": "^3.5.0",
     "wavefile": "^11.0.0"
-  }
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "sideEffects": false
 }

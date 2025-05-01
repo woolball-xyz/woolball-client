@@ -12,10 +12,10 @@ if (!fs.existsSync('dist')) {
   fs.mkdirSync('dist');
 }
 
-// Create a simple browser bundle for the worker using esbuild
+// Create a browser-compatible bundle for the worker using esbuild
 console.log('Creating transformers-js worker bundle...');
 execSync(
-  'npx esbuild src/providers/transformers-js/worker.ts --bundle --outfile=dist/transformers-js.js',
+  'npx esbuild src/providers/transformers-js/worker.ts --bundle --format=iife --platform=browser --target=es2020 --outfile=dist/transformers-js.js',
   { stdio: 'inherit' }
 );
 

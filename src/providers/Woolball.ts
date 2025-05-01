@@ -133,8 +133,12 @@ class Woolball {
     private registerWorkers() {
         try {
             if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
-                const workerPath = '/dist/transformers-js.js';
-                const speechToTextWorker = new Worker(workerPath);
+                // Create a blob URL from the worker path
+                const workerPath = './node_modules/woolball-client/dist/transformers-js.js';
+                const workerUrl = new URL(workerPath, window.location.origin).href;
+                
+                // Create the worker with type: 'classic' to avoid module loading issues
+                const speechToTextWorker = new Worker(workerUrl, { type: 'module' });
                 this.workers.set('speech-recognition', speechToTextWorker);
 
                 console.log('Worker registrado com sucesso!');
