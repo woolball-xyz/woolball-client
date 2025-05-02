@@ -1,5 +1,6 @@
 # woolball-client 🧶  
 [![npm](https://img.shields.io/npm/v/woolball-client?color=crimson&logo=npm)](https://www.npmjs.com/package/woolball-client)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=woolball-xyz_browser-node&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=woolball-xyz_browser-node)
 
 *Turn any open tab into an AI compute node*
 
