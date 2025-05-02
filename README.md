@@ -17,7 +17,7 @@ npm install woolball-client
 ```typescript
 import Woolball from 'woolball-client';
 
-// Initialize with your client ID
+// Initialize with a client ID
 const woolball = new Woolball('your-client-id', 'ws.server.com'); // ws://localhost:9003 by default
 
 // Listen for task events
