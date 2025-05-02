@@ -1,10 +1,26 @@
-# woolball-client
+# woolball-client 🧶  
+[![npm](https://img.shields.io/npm/v/woolball-client?color=crimson&logo=npm)](https://www.npmjs.com/package/woolball-client)
 
-A client-side library for the Woolball platform that enables secure browser resource sharing for distributed AI task processing.
+*Turn any open tab into an AI compute node*
 
-⚠️ **Important**: Before using this library, make sure you have the Woolball server running:
+`woolball-client` establishes a connection between a user's browser and a running woolball-server instance. It utilizes WebSocket to receive job requests, executes the specified model locally using WebGPU or WASM, and transmits the outcome back to the server in real-time.
 
-Follow the server setup instructions at [browser-network-server](https://github.com/woolball-xyz/browser-network-server)
+
+> ⚠️ **Important**: Before using this library, make sure you have the [woolball-server](https://github.com/woolball-xyz/woolball-server) running
+
+
+## Supported Tasks
+
+| Provider | Task | Models | Status |
+|----------|------|--------|--------|
+| **Transformers.js** | Speech-to-Text | [ONNX Models](https://huggingface.co/models?pipeline_tag=automatic-speech-recognition&library=transformers.js&sort=trending) | ✅ Implemented |
+| **Transformers.js** | Text-to-Speech | [ONNX Models](https://huggingface.co/models?pipeline_tag=text-to-speech&library=transformers.js&sort=trending) | 🚧 Pending |
+| **Transformers.js** | Translation | [ONNX Models](https://huggingface.co/models?pipeline_tag=translation&library=transformers.js&sort=trending) | 🚧 Pending |
+| **Transformers.js** | Image-Text-to-Text | [ONNX Models](https://huggingface.co/models?pipeline_tag=image-text-to-text&library=transformers.js&sort=trending) | 🚧 Pending |
+| **Transformers.js** | Text-Generation | [ONNX Models](https://huggingface.co/models?pipeline_tag=text-generation&library=transformers.js&sort=trending) | 🚧 Pending |
+| **WebLLM** | Text Generation | [MLC Models](https://mlc.ai/models) | 🚧 Pending |
+| **MediaPipe** | Text Generation | [LiteRT Models](https://ai.google.dev/edge/mediapipe/solutions/genai/llm_inference#models) | 🚧 Pending |
+
 
 ## Quick Start
 

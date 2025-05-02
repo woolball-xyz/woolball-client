@@ -61,3 +61,24 @@ jobs:
         name: playwright-report
         path: playwright-report/
         retention-days: 30
+
+  publish_client:
+    needs: unit-tests-and-build
+    name: Deploy Client App
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1 
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_TOKEN }}
+    - name: Build and push Docker image
+      run: |
+         if [ ${{ github.ref }} = 'refs/heads/main' ]; then
+          docker compose -f usage/docker-compose.yml build
+          docker compose -f usage/docker-compose.yml push
+         else  
+          docker compose -f usage/docker-compose.yml build
+         fi
