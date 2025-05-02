@@ -1,8 +1,8 @@
 /**
- * Unit tests for the speech-to-text worker
+ * Unit tests for the transformers-js worker
  */
 
-import { process } from '../models/speech-to-text/worker';
+import { process } from '../providers/transformers-js/worker';
 import { processAudio } from '../utils/media';
 import { setupWorkerMock, cleanupWorkerMock } from './mocks/worker-mock';
 
@@ -24,7 +24,7 @@ jest.mock('@huggingface/transformers', () => {
 // Mock postMessage for worker environment
 const mockPostMessage = jest.fn();
 
-describe('Speech-to-text Worker', () => {
+describe('Transformers-js Worker', () => {
   beforeAll(() => {
     // Setup worker mocks
     setupWorkerMock();
@@ -36,6 +36,7 @@ describe('Speech-to-text Worker', () => {
     // Clean up worker mocks
     cleanupWorkerMock();
   });
+  
   beforeEach(() => {
     // Clear all mocks before each test
     jest.clearAllMocks();
@@ -44,15 +45,15 @@ describe('Speech-to-text Worker', () => {
   test('should process audio data and return transcription result', async () => {
     // Arrange
     const mockEventData = {
-      id: '12345',
       input: 'base64AudioData',
+      task: 'automatic-speech-recognition',
       dtype: 'q8',
       model: 'test-model',
       language: 'en',
     };
     
     const mockEvent = {
-      data: JSON.stringify(mockEventData),
+      data: mockEventData,
     } as MessageEvent;
 
     // Act
@@ -60,58 +61,27 @@ describe('Speech-to-text Worker', () => {
 
     // Assert
     expect(processAudio).toHaveBeenCalledWith('base64AudioData');
-    expect(mockPostMessage).toHaveBeenCalled();
-    
-    // Verify the structure of the posted message
-    const postedMessage = JSON.parse(mockPostMessage.mock.calls[0][0]);
-    expect(postedMessage).toHaveProperty('id', '12345');
-    expect(postedMessage).toHaveProperty('result');
-    expect(postedMessage.result).toHaveProperty('text', 'mocked transcription result');
+    expect(mockPostMessage).toHaveBeenCalledWith({ text: 'mocked transcription result' });
   });
 
   test('should handle errors and send error message', async () => {
     // Arrange
     const mockEventData = {
-      id: '12345',
       input: 'base64AudioData',
+      task: 'invalid-task',
       dtype: 'q8',
       model: 'test-model',
       language: 'en',
     };
     
     const mockEvent = {
-      data: JSON.stringify(mockEventData),
+      data: mockEventData,
     } as MessageEvent;
-
-    // Mock processAudio to throw an error
-    (processAudio as jest.Mock).mockImplementationOnce(() => {
-      throw new Error('Test error');
-    });
 
     // Act
     await process(mockEvent);
 
     // Assert
-    expect(mockPostMessage).toHaveBeenCalled();
-    
-    // Verify the error message structure
-    const postedMessage = JSON.parse(mockPostMessage.mock.calls[0][0]);
-    expect(postedMessage).toHaveProperty('id', '12345');
-    expect(postedMessage).toHaveProperty('error');
-  });
-
-  test('should handle worker message event', () => {
-    // Arrange
-    const processSpy = jest.spyOn(require('../models/speech-to-text/worker'), 'process').mockImplementation(() => Promise.resolve());
-    const mockEvent = { data: JSON.stringify({ id: '12345' }) } as MessageEvent;
-    
-    // Act
-    self.onmessage!(mockEvent);
-    
-    // Assert
-    expect(processSpy).toHaveBeenCalledWith(mockEvent);
-    
-    // Cleanup
-    processSpy.mockRestore();
+    expect(mockPostMessage).toHaveBeenCalledWith({ error: 'invalid task' });
   });
 });

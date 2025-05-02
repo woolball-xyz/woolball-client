@@ -14,36 +14,17 @@
   
   <!-- Expose the library to the window object for testing -->
   <script>
-    // Initialize Woolball object first to ensure it always exists
-    window.Woolball = window.Woolball || {};
-    
-    // Make the Woolball API available globally for tests
-    // Ensure Woolball is properly exposed even if initialization fails
     try {
-      // The library might throw an error during initialization in non-Chrome browsers
-      // but we still want to expose its API for testing
-      // If the script loaded properly, the global Woolball variable should be defined
-      if (typeof Woolball !== 'undefined' && Woolball !== window.Woolball) {
-        // Copy properties from the loaded Woolball to window.Woolball
-        Object.assign(window.Woolball, Woolball);
-      }
+      // Wait for the module to be loaded
+      const { isChromeBased, verifyBrowserCompatibility } = require_browser().exports;
       
-      // If Woolball exists but doesn't have the required methods, add them
-      // This ensures tests can run in all browsers, even if they'll throw expected errors
-      if (!window.Woolball.isChromeBased) {
-        window.Woolball.isChromeBased = function() {
-          return false; // Default for browsers where the real function isn't available
-        };
-      }
+      // Expose the utility functions for testing
+      window.Woolball = {
+        isChromeBased,
+        verifyBrowserCompatibility
+      };
       
-      if (!window.Woolball.verifyBrowserCompatibility) {
-        window.Woolball.verifyBrowserCompatibility = function() {
-          throw new Error('Woolball is only compatible with Chrome-based browsers. Please use Chrome, Chromium, Edge, or another Chrome-based browser.');
-        };
-      }
-      
-      // Add console logging to help with debugging
-      console.log('Woolball loaded:', window.Woolball);
+      console.log('Woolball loaded successfully:', window.Woolball);
     } catch (error) {
       console.error('Error initializing Woolball:', error);
     }

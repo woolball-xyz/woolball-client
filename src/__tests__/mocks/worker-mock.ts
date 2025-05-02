@@ -29,7 +29,7 @@ export class MockWorker {
   postMessage(data: any) {
     // Simulate successful response after a short delay
     setTimeout(() => {
-      const response = { data: JSON.stringify({ result: 'mocked result' }) };
+      const response = { data: { text: 'mocked transcription result' } };
       this.listeners.message.forEach(callback => callback(response));
     }, 20);
   }
@@ -46,39 +46,18 @@ export class MockWorker {
   
   // Method to simulate error
   triggerError(error: ErrorEvent) {
-    // Make sure the error is properly propagated
-    if (this.listeners.error && this.listeners.error.length > 0) {
-      this.listeners.error.forEach(callback => callback(error));
-    } else {
-      // If no error listeners are registered, use onerror if available
-      const errorHandler = this.onerror as unknown as ((event: ErrorEvent) => void) | null;
-      if (errorHandler) {
-        errorHandler(error);
-      }
-    }
-    // Don't throw here as it breaks the tests that expect callbacks
-    // Instead, the error will be propagated through the promise rejection in Woolball.processEvent
+    this.listeners.error.forEach(callback => callback(error));
   }
 }
 
-// Setup global mocks for Worker API
+// Global mock setup
 export function setupWorkerMock() {
-  // Mock global Worker
-  global.Worker = MockWorker as any;
-  
-  // Mock self for worker context
-  if (typeof global.self === 'undefined') {
-    global.self = {
-      postMessage: jest.fn(),
-      onmessage: null,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn()
-    } as unknown as typeof self;
-  }
+  // @ts-ignore - Override global Worker class
+  global.Worker = MockWorker;
 }
 
-// Cleanup global mocks
+// Cleanup function
 export function cleanupWorkerMock() {
-  delete (global as any).Worker;
-  delete (global as any).self;
+  // @ts-ignore - Restore global Worker class
+  delete global.Worker;
 }
