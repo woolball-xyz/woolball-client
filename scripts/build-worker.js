@@ -20,3 +20,11 @@ execSync(
 );
 
 console.log('Worker bundle created at dist/transformers-js.js');
+
+// Gere um módulo que exporta o código do worker como string
+const workerCode = fs.readFileSync('dist/transformers-js.js', 'utf-8');
+fs.writeFileSync(
+  'src/providers/transformers-js/worker-string.ts',
+  `const workerCode = ${JSON.stringify(workerCode)};\nexport default workerCode;\n`
+);
+console.log('Worker string module created at src/providers/transformers-js/worker-string.ts');

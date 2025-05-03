@@ -1,5 +1,7 @@
 import { verifyBrowserCompatibility } from "../utils";
 import { WebSocketMessage, WorkerEvent } from "../utils/websocket";
+import Worker from 'web-worker';
+import workerCode from './transformers-js/worker-string';
 
 
 
@@ -132,15 +134,11 @@ class Woolball {
 
     private registerWorkers() {
         try {
-            if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
-                // Create a blob URL from the worker path
-                const workerPath = './node_modules/woolball-client/dist/transformers-js.js';
-                const workerUrl = new URL(workerPath, window.location.origin).href;
-                
-                // Create the worker with type: 'classic' to avoid module loading issues
-                const speechToTextWorker = new Worker(workerUrl, { type: 'module' });
+            if (typeof window !== 'undefined') {
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                const workerUrl = URL.createObjectURL(blob);
+                const speechToTextWorker = new Worker(workerUrl);
                 this.workers.set('speech-recognition', speechToTextWorker);
-
                 console.log('Worker registrado com sucesso!');
             } else {
                 throw new Error('Ambiente não suportado para Web Workers');
