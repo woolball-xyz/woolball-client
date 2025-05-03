@@ -62,7 +62,6 @@ jobs:
   #       retention-days: 30
 
   publish_client:
-    needs: unit-tests-and-build
     name: Deploy Client App
     runs-on: ubuntu-latest
     steps:
