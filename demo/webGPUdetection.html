@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    
+    <script>
+        /**
+ * WebGPU Hardware Info Gathering Snippet for Browser Console (v2)
+ *
+ * Changes:
+ * - Clearly reports adapter.limits.maxBufferSize.
+ * - Requests the adapter's maxBufferSize for the probing device.
+ * - Clarifies the meaning of the VRAM probe result.
+ *
+ * Usage:
+ * 1. Open your browser's developer console (usually F12).
+ * 2. Paste this entire script into the console and press Enter.
+ * 3. Call `checkMyModel()` in the console to run the example check.
+ * 4. Modify `myModelReqs` in the `checkMyModel` function to match your model's needs.
+ * 5. Call `getWebGPUHardwareInfo()` directly for the full report object.
+ */
+
+async function getWebGPUHardwareInfo(options = {}) {
+    const {
+        powerPreference = 'high-performance',
+        requestDeviceForProbes = false,
+        probeMemory = false,
+        benchmark = false, // Note: Benchmark function is a placeholder
+    } = options;
+
+    const report = {
+        webgpuSupported: false,
+        adapterInfo: null,
+        features: null,
+        limits: null, // Will contain adapter's limits including maxBufferSize
+        adapterMaxBufferSize: null, // Explicitly store adapter's max buffer size limit
+        estimatedAvailableVRAM: null, // Probe result up to adapter's max
+        benchmarkResults: null,
+        errors: [],
+        warnings: [],
+    };
+
+    // 1. Check for WebGPU Support
+    if (!navigator.gpu) {
+        report.errors.push('WebGPU not supported by this browser.');
+        console.error('WebGPU not supported by this browser.');
+        return report;
+    }
+    report.webgpuSupported = true;
+    console.log('WebGPU is supported.');
+
+    // 2. Request Adapter
+    let adapter = null;
+    try {
+        console.log(`Requesting adapter with preference: ${powerPreference}...`);
+        adapter = await navigator.gpu.requestAdapter({ powerPreference });
+        if (!adapter) {
+            const otherPreference =
+                powerPreference === 'high-performance'
+                    ? 'low-power'
+                    : 'high-performance';
+            report.warnings.push(
+                `Initial adapter request failed, trying powerPreference: ${otherPreference}`
+            );
+            console.warn(`Initial adapter request failed, trying powerPreference: ${otherPreference}`);
+            adapter = await navigator.gpu.requestAdapter({ powerPreference: otherPreference });
+        }
+    } catch (e) {
+        report.errors.push(`Error requesting adapter: ${e.message}`);
+        console.error(`Error requesting adapter: ${e.message}`);
+        return report; // Critical error
+    }
+
+    if (!adapter) {
+        report.errors.push('Could not get a WebGPU adapter.');
+        console.error('Could not get a WebGPU adapter.');
+        return report; // Critical error
+    }
+    console.log('Adapter obtained.');
+
+    // 3. Extract Definite Info (Adapter Level)
+    let adapterLimitMaxBufferSize = 0; // Store adapter's max buffer size
+    try {
+        console.log('Extracting adapter limits, features, and info...');
+        report.limits = extractKeyLimits(adapter.limits);
+        // Store the crucial adapter max buffer size separately for clarity
+        if (report.limits && typeof report.limits.maxBufferSize === 'number') {
+             adapterLimitMaxBufferSize = report.limits.maxBufferSize;
+             report.adapterMaxBufferSize = adapterLimitMaxBufferSize;
+             console.log(`Adapter reports maxBufferSize: ${(adapterLimitMaxBufferSize / (1024*1024)).toFixed(0)} MiB`);
+        } else {
+             console.warn("Could not read adapter's maxBufferSize limit.");
+             report.adapterMaxBufferSize = null;
+        }
+
+        report.features = adapter.features ? Array.from(adapter.features) : [];
+        const adapterInfoResult = await Promise.resolve(adapter.info); // Should be sync
+        report.adapterInfo = sanitizeAdapterInfo(adapterInfoResult);
+        console.log('Adapter info extracted.');
+    } catch (e) {
+        report.errors.push(`Error accessing adapter properties: ${e.message}`);
+        console.error(`Error accessing adapter properties: ${e.message}`);
+    }
+
+    // 4. (Optional) Request Device & Probe
+    let device = null;
+    const needsDevice = requestDeviceForProbes && (probeMemory || benchmark);
+    let deviceLost = false; // Track device loss state
+
+    if (adapter && needsDevice) {
+        console.log('Requesting device for probing...');
+        const devicePromise = (async () => { // Wrap device request and probing
+            try {
+                const requiredFeatures = [];
+                if (benchmark && report.features?.includes('timestamp-query')) {
+                    requiredFeatures.push('timestamp-query');
+                }
+
+                // *** CHANGE: Request device WITH the adapter's maxBufferSize limit ***
+                const requiredLimits = {};
+                if (adapterLimitMaxBufferSize > 0) {
+                    requiredLimits.maxBufferSize = adapterLimitMaxBufferSize;
+                    console.log(`Requesting probing device with maxBufferSize: ${(adapterLimitMaxBufferSize / (1024*1024)).toFixed(0)} MiB`);
+                } else {
+                     console.warn("Cannot request specific maxBufferSize for probing device; adapter limit unknown.");
+                }
+
+
+                device = await adapter.requestDevice({ requiredFeatures, requiredLimits });
+                console.log('Device obtained for probing.');
+                 // Verify the probing device actually got the requested limit (optional sanity check)
+                 if (adapterLimitMaxBufferSize > 0 && device.limits.maxBufferSize < adapterLimitMaxBufferSize) {
+                     console.warn(`Probing device was granted a lower maxBufferSize (${(device.limits.maxBufferSize / (1024*1024)).toFixed(0)} MiB) than requested.`);
+                     // Update the hint for the probe if the device limit is lower
+                     adapterLimitMaxBufferSize = device.limits.maxBufferSize;
+                 }
+
+
+                const lostPromise = device.lost.then((info) => {
+                    deviceLost = true;
+                    report.errors.push(`Device lost: ${info.reason} - ${info.message}`);
+                    console.error(`Device lost: ${info.reason} - ${info.message}`);
+                    report.estimatedAvailableVRAM = null;
+                    report.benchmarkResults = null;
+                    throw new Error(`Device lost: ${info.reason}`);
+                });
+
+                console.log('Waiting for initial device queue...');
+                await Promise.race([
+                     device.queue.onSubmittedWorkDone(),
+                     lostPromise
+                ]);
+                console.log('Initial device queue ready (or device lost).');
+
+
+                if (deviceLost) return; // Stop if device lost during setup
+
+                if (probeMemory) {
+                    report.warnings.push("Starting experimental VRAM estimation probe (up to device limit).");
+                    console.warn("Starting experimental VRAM estimation probe (up to device limit).");
+                    // Pass the *actual* limit of the probing device to the estimator
+                    const probeDeviceMaxBuffer = device.limits.maxBufferSize;
+                    const vramEstimate = await estimateAvailableVRAMIncremental(
+                        device,
+                        probeDeviceMaxBuffer
+                    );
+                     if (!deviceLost) { // Check loss *after* probe
+                         report.estimatedAvailableVRAM = vramEstimate;
+                         if (report.estimatedAvailableVRAM === 0) {
+                             report.warnings.push('VRAM estimation probe failed or returned 0.');
+                             console.warn('VRAM estimation probe failed or returned 0.');
+                         } else {
+                             const vramMB = (vramEstimate / (1024*1024)).toFixed(0);
+                             report.warnings.push(`VRAM Probe Result: Largest successful single allocation was ${vramMB} MiB. This indicates current availability, not total VRAM.`);
+                              console.warn(`VRAM Probe Result: Largest successful single allocation was ${vramMB} MiB. This indicates current availability, not total VRAM.`);
+                         }
+                     } else {
+                          console.warn("VRAM estimation aborted due to device loss during probe.");
+                     }
+                }
+
+                if (benchmark && !deviceLost) {
+                    if (report.features?.includes('timestamp-query')) {
+                        report.warnings.push("Starting experimental benchmarking.");
+                        console.warn("Starting experimental benchmarking (placeholder).");
+                        const benchResults = await runBenchmarks(device);
+                         if (!deviceLost) { // Check loss *after* benchmark
+                            report.benchmarkResults = benchResults;
+                            report.warnings.push("Benchmarking completed (implementation is placeholder).");
+                            console.warn("Benchmarking completed (placeholder).");
+                         } else {
+                             console.warn("Benchmarking aborted due to device loss during benchmark.");
+                         }
+                    } else {
+                        report.warnings.push("Benchmarking skipped: timestamp-query feature not available or enabled.");
+                        console.warn("Benchmarking skipped: timestamp-query feature not available or enabled.");
+                    }
+                }
+
+            } catch (e) {
+                 if (!deviceLost) {
+                    report.errors.push(`Error requesting/using device for probes: ${e.message}`);
+                    console.error(`Error requesting/using device for probes: ${e.message}`);
+                 }
+                 if (!device) device = null;
+            }
+        })();
+
+        await devicePromise; // Wait for probing to finish or fail
+
+    } else if (probeMemory || benchmark) {
+        report.warnings.push('Memory probing/benchmarking skipped: requestDeviceForProbes option is false.');
+        console.warn('Memory probing/benchmarking skipped: requestDeviceForProbes option is false.');
+    }
+
+     // 5. Cleanup Device
+     if (device && !deviceLost) {
+         try {
+             console.log('Destroying probing device...');
+             device.destroy();
+             console.log('Probing device destroyed.');
+         } catch (e) {
+             if (!deviceLost) {
+                 report.warnings.push(`Non-critical error during device destroy: ${e.message}`);
+                 console.warn(`Non-critical error during device destroy: ${e.message}`);
+             }
+         }
+     } else if (device && deviceLost) {
+         console.log('Skipping destroy for already lost probing device.');
+     }
+
+
+    // 6. Return Structured Data
+    console.log('Hardware info gathering complete.');
+    return report;
+}
+
+// --- Helper Functions ---
+
+function extractKeyLimits(limits) {
+    if (!limits) return null;
+    const toNumber = (val) => Number(val || 0);
+    try {
+        // Extract all limits as before
+        return {
+            maxTextureDimension1D: limits.maxTextureDimension1D,
+            maxTextureDimension2D: limits.maxTextureDimension2D,
+            maxTextureDimension3D: limits.maxTextureDimension3D,
+            maxTextureArrayLayers: limits.maxTextureArrayLayers,
+            maxBindGroups: limits.maxBindGroups,
+            maxBindingsPerBindGroup: limits.maxBindingsPerBindGroup,
+            maxDynamicUniformBuffersPerPipelineLayout: limits.maxDynamicUniformBuffersPerPipelineLayout,
+            maxDynamicStorageBuffersPerPipelineLayout: limits.maxDynamicStorageBuffersPerPipelineLayout,
+            maxSampledTexturesPerShaderStage: limits.maxSampledTexturesPerShaderStage,
+            maxSamplersPerShaderStage: limits.maxSamplersPerShaderStage,
+            maxStorageBuffersPerShaderStage: limits.maxStorageBuffersPerShaderStage,
+            maxStorageTexturesPerShaderStage: limits.maxStorageTexturesPerShaderStage,
+            maxUniformBuffersPerShaderStage: limits.maxUniformBuffersPerShaderStage,
+            maxUniformBufferBindingSize: toNumber(limits.maxUniformBufferBindingSize),
+            maxStorageBufferBindingSize: toNumber(limits.maxStorageBufferBindingSize),
+            minUniformBufferOffsetAlignment: limits.minUniformBufferOffsetAlignment,
+            minStorageBufferOffsetAlignment: limits.minStorageBufferOffsetAlignment,
+            maxVertexBuffers: limits.maxVertexBuffers,
+            maxBufferSize: toNumber(limits.maxBufferSize), // This is the key one
+            maxVertexAttributes: limits.maxVertexAttributes,
+            maxVertexBufferArrayStride: limits.maxVertexBufferArrayStride,
+            maxInterStageShaderComponents: limits.maxInterStageShaderVariables ?? limits.maxInterStageShaderComponents ?? 0,
+            maxColorAttachments: limits.maxColorAttachments,
+            maxColorAttachmentBytesPerSample: limits.maxColorAttachmentBytesPerSample ?? 32,
+            maxComputeWorkgroupStorageSize: limits.maxComputeWorkgroupStorageSize,
+            maxComputeInvocationsPerWorkgroup: limits.maxComputeInvocationsPerWorkgroup,
+            maxComputeWorkgroupSizeX: limits.maxComputeWorkgroupSizeX,
+            maxComputeWorkgroupSizeY: limits.maxComputeWorkgroupSizeY,
+            maxComputeWorkgroupSizeZ: limits.maxComputeWorkgroupSizeZ,
+            maxComputeWorkgroupsPerDimension: limits.maxComputeWorkgroupsPerDimension,
+        };
+    } catch (e) {
+        console.error("Error parsing limits:", e);
+        return null;
+    }
+}
+
+function sanitizeAdapterInfo(info) {
+    if (!info) return null;
+    return {
+        vendor: info.vendor || 'N/A',
+        architecture: info.architecture || 'N/A',
+        device: info.device || 'N/A',
+        description: info.description || 'N/A',
+        isFallbackAdapter: info.isFallbackAdapter ?? false,
+        subgroupMinSize: info.subgroupMinSize ?? null,
+        subgroupMaxSize: info.subgroupMaxSize ?? null,
+    };
+}
+
+// VRAM estimator remains largely the same, but now operates up to the probing device's actual limit
+async function estimateAvailableVRAMIncremental(device, probeDeviceMaxBuffer) {
+    console.warn(
+        `[EXPERIMENTAL VRAM PROBE - Incremental] Starting VRAM estimation up to device limit of ${(probeDeviceMaxBuffer / (1024*1024)).toFixed(0)} MiB.`
+    );
+    let largestSuccessfulAllocation = 0;
+    const usage = GPUBufferUsage.STORAGE;
+
+    const sizesToTry = [];
+    const fourMB = 4 * 1024 * 1024;
+    // Cap probe attempts at 4GB for stability, even if device limit is higher
+    const practicalMaxAlloc = Math.min(probeDeviceMaxBuffer, 4 * 1024 * 1024 * 1024);
+
+    // Generate sizes up to the practical max allocation size for the probe
+    for (let size = 32 * 1024 * 1024; size <= practicalMaxAlloc; size *= 2) {
+         const alignedSize = Math.floor(size / fourMB) * fourMB;
+         if (alignedSize > 0 && !sizesToTry.includes(alignedSize) && alignedSize <= practicalMaxAlloc) {
+            sizesToTry.push(alignedSize);
+         }
+         if (alignedSize !== size && size <= practicalMaxAlloc && !sizesToTry.includes(size)) {
+              sizesToTry.push(size);
+         }
+    }
+     // Ensure the practical max is tested
+     if (!sizesToTry.includes(practicalMaxAlloc) && practicalMaxAlloc > 0) {
+         // Align the cap as well
+          const alignedCap = Math.floor(practicalMaxAlloc / fourMB) * fourMB;
+          if (alignedCap > 0 && !sizesToTry.includes(alignedCap)) {
+               sizesToTry.push(alignedCap);
+          }
+          // Also add the unaligned cap if different and not present
+          if(alignedCap !== practicalMaxAlloc && !sizesToTry.includes(practicalMaxAlloc)) {
+               sizesToTry.push(practicalMaxAlloc);
+          }
+     }
+     sizesToTry.sort((a, b) => a - b);
+
+    console.log('[VRAM Probe] Sizes to attempt (MiB):', sizesToTry.map(s => (s / (1024*1024)).toFixed(1)).join(', '));
+
+    let deviceLostDuringProbe = false;
+    // Use a separate promise for loss detection *during* the probe loop
+    const probeLossPromise = device.lost.then(() => { deviceLostDuringProbe = true; });
+
+    for (const trySize of sizesToTry) {
+        // Check loss flag before each attempt
+        if (deviceLostDuringProbe) {
+            console.warn("[VRAM Probe] Device lost during incremental probe loop.");
+            break; // Exit loop if device was lost
+        }
+
+        let buffer = null;
+        try {
+            // No console log here to reduce noise, rely on success/failure logs
+            buffer = device.createBuffer({ size: trySize, usage });
+
+            // Race queue submission against device loss for this specific step
+            await Promise.race([device.queue.onSubmittedWorkDone(), probeLossPromise]);
+
+            // Check loss *after* waiting for the queue or loss
+            if (deviceLostDuringProbe) {
+                console.warn(`[VRAM Probe] Device lost after trying to allocate ${(trySize / (1024 * 1024)).toFixed(1)} MiB.`);
+                // Don't throw, just break the loop as loss is handled
+                break;
+            }
+
+            // If we reach here, it succeeded for this size
+            largestSuccessfulAllocation = trySize;
+            console.log(`[VRAM Probe] Success: ${(trySize / (1024 * 1024)).toFixed(1)} MiB`);
+
+        } catch (e) {
+            // Log failure, but don't log if it was due to device loss (already logged by promise)
+            if (!deviceLostDuringProbe) {
+                console.log(`[VRAM Probe] Failure: ${(trySize / (1024 * 1024)).toFixed(1)} MiB (${e.name}: ${e.message})`);
+            }
+            break; // Stop probing after the first failure
+        } finally {
+            if (buffer) {
+                try { buffer.destroy(); } catch (destroyError) { /* Ignore */ }
+            }
+             // Optional small delay only if device not lost
+             if (!deviceLostDuringProbe) {
+                await new Promise(resolve => setTimeout(resolve, 20));
+             }
+        }
+    }
+
+    console.warn(
+        `[EXPERIMENTAL VRAM PROBE - Incremental] Finished. Largest successful single allocation: ${largestSuccessfulAllocation / (1024 * 1024)} MiB.`
+    );
+    // Return 0 if the device was lost at any point during the probe
+    return deviceLostDuringProbe ? 0 : largestSuccessfulAllocation;
+}
+
+
+async function runBenchmarks(device) {
+    console.warn('[Benchmark] Benchmarking function is a placeholder.');
+     let deviceLostDuringBenchmark = false;
+     const lostPromise = device.lost.then(() => { deviceLostDuringBenchmark = true; });
+     await Promise.race([ new Promise(resolve => setTimeout(resolve, 100)), lostPromise ]); // Simulate work
+     if(deviceLostDuringBenchmark) {
+         console.warn("[Benchmark] Device lost during benchmark simulation.");
+         return null;
+     }
+    return {
+         fp32GFLOPS: Math.random() * 200 + 50,
+         memoryBandwidthGBps: Math.random() * 100 + 20,
+    };
+}
+
+// Model check function remains the same, but now uses report.adapterMaxBufferSize for primary checks
+function canRunModel(hardwareInfo, modelRequirements) {
+    const reasons = [];
+    const MiB = 1024 * 1024; // Helper
+
+    if (!hardwareInfo.webgpuSupported) {
+        reasons.push('WebGPU is not supported by the browser.');
+        return { canRun: false, reasons };
+    }
+    if (!hardwareInfo.limits || hardwareInfo.adapterMaxBufferSize === null) {
+        reasons.push('Could not retrieve critical device limits (incl. maxBufferSize). Cannot assess compatibility.');
+        return { canRun: false, reasons };
+    }
+    if (!hardwareInfo.features) {
+         reasons.push('Could not retrieve device features. Cannot assess compatibility.');
+         return { canRun: false, reasons };
+    }
+
+    // --- Check Requirements ---
+
+    // Check Adapter's Max Buffer Size (Primary Check for chunking)
+    if (modelRequirements.minAdapterMaxBufferSize) { // New requirement check
+         if (hardwareInfo.adapterMaxBufferSize < modelRequirements.minAdapterMaxBufferSize) {
+             reasons.push(
+                 `Adapter maxBufferSize limit (${(hardwareInfo.adapterMaxBufferSize / MiB).toFixed(0)} MiB) < required (${(modelRequirements.minAdapterMaxBufferSize / MiB).toFixed(0)} MiB for chunking).`
+             );
+         }
+     }
+    // Check VRAM Probe (Secondary Check / Warning)
+    if (modelRequirements.minVRAM) {
+        if (hardwareInfo.estimatedAvailableVRAM === null) {
+            reasons.push(
+                `Warning: VRAM requirement (${(modelRequirements.minVRAM / MiB).toFixed(0)} MiB) cannot be checked (estimation failed/skipped).`
+            );
+        } else if (hardwareInfo.estimatedAvailableVRAM < modelRequirements.minVRAM) {
+             reasons.push(
+                 `Warning: Estimated available VRAM via probe (${(hardwareInfo.estimatedAvailableVRAM / MiB).toFixed(0)} MiB) < desired (${(modelRequirements.minVRAM / MiB).toFixed(0)} MiB). May indicate memory pressure.`
+             );
+        }
+    }
+
+    // Check Specific Limits (using adapter limits from report.limits)
+    if (modelRequirements.minStorageBufferBindingSize &&
+        hardwareInfo.limits.maxStorageBufferBindingSize < modelRequirements.minStorageBufferBindingSize) {
+        reasons.push(
+            `Device maxStorageBufferBindingSize limit (${(hardwareInfo.limits.maxStorageBufferBindingSize / MiB).toFixed(0)} MiB) < required (${(modelRequirements.minStorageBufferBindingSize / MiB).toFixed(0)} MiB).`
+        );
+    }
+     if (modelRequirements.minComputeWorkgroupStorageSize &&
+         hardwareInfo.limits.maxComputeWorkgroupStorageSize < modelRequirements.minComputeWorkgroupStorageSize) {
+         reasons.push(
+             `Device maxComputeWorkgroupStorageSize limit (${hardwareInfo.limits.maxComputeWorkgroupStorageSize} bytes) < required (${modelRequirements.minComputeWorkgroupStorageSize} bytes).`
+         );
+     }
+     // Add checks for other limits...
+
+    // Check Features
+    if (modelRequirements.requiredFeatures) {
+        for (const feature of modelRequirements.requiredFeatures) {
+            if (!hardwareInfo.features.includes(feature)) {
+                reasons.push(`Required feature "${feature}" is not supported.`);
+            }
+        }
+    }
+
+    // Check Benchmarks (if available and required)
+    // ... (benchmark check logic remains the same) ...
+     if (modelRequirements.minComputeGFLOPS) {
+        const benchmarkType = modelRequirements.minComputeGFLOPS.type;
+        const requiredGFLOPS = modelRequirements.minComputeGFLOPS.value;
+        let availableGFLOPS;
+        if (hardwareInfo.benchmarkResults) {
+            availableGFLOPS = benchmarkType === 'fp32'
+                ? hardwareInfo.benchmarkResults.fp32GFLOPS
+                : hardwareInfo.benchmarkResults.fp16GFLOPS;
+        }
+        if (availableGFLOPS === undefined || availableGFLOPS === null) {
+             reasons.push(`Required performance (${requiredGFLOPS.toFixed(1)} ${benchmarkType.toUpperCase()} GFLOPS) cannot be checked (benchmark failed/skipped/placeholder).`);
+        } else if (availableGFLOPS < requiredGFLOPS) {
+             reasons.push(`Estimated performance (${availableGFLOPS.toFixed(1)} ${benchmarkType.toUpperCase()} GFLOPS) < required (${requiredGFLOPS.toFixed(1)} GFLOPS).`);
+        }
+    }
+
+
+    // Determine overall runnability based on non-warning reasons
+    const hardFailures = reasons.filter(r => !r.startsWith("Warning:")).length > 0;
+    return { canRun: !hardFailures, reasons };
+}
+
+
+// --- Example Usage Function ---
+async function checkMyModel() {
+    console.log("--- Starting Hardware Check ---");
+
+    const hardwareInfo = await getWebGPUHardwareInfo({
+        requestDeviceForProbes: true, // Enable device creation
+        probeMemory: true,            // Enable VRAM probe
+        benchmark: false
+    });
+
+    console.log("--- Hardware Info Report ---");
+    console.log("WebGPU Supported:", hardwareInfo.webgpuSupported);
+    console.log("Adapter Info:", hardwareInfo.adapterInfo);
+    console.log("Features:", hardwareInfo.features);
+    console.log("Adapter Max Buffer Size (Bytes):", hardwareInfo.adapterMaxBufferSize); // Log the key limit
+    console.log("Limits (Full):", hardwareInfo.limits); // Log all limits from adapter
+    console.log("Estimated Available VRAM (Probe Result - Bytes):", hardwareInfo.estimatedAvailableVRAM);
+    console.log("Benchmark Results:", hardwareInfo.benchmarkResults);
+    console.log("Warnings:", hardwareInfo.warnings);
+    console.log("Errors:", hardwareInfo.errors);
+    console.log("-----------------------------");
+
+
+    // --- Define Your Model's Requirements ---
+    const myModelReqs = {
+         // New requirement based on adapter's capability for chunking
+         minAdapterMaxBufferSize: 1 * 1024 * 1024 * 1024, // Require adapter supports at least 1 GiB single buffers
+        // Optional: Still check probe result as a warning
+         minVRAM: 512 * 1024 * 1024, // Warn if probe shows less than 512 MiB available now
+        requiredFeatures: ['shader-f16'],
+        minStorageBufferBindingSize: 128 * 1024 * 1024,
+    };
+    console.log("--- Checking Model Compatibility ---");
+    console.log("Model Requirements:", myModelReqs);
+
+
+    // --- Perform the Check ---
+    const compatibility = canRunModel(hardwareInfo, myModelReqs);
+
+    console.log("--- Compatibility Result ---");
+    if (compatibility.canRun) {
+        console.log("✅ SUCCESS: Hardware meets the preliminary requirements for the model.");
+         const warnings = compatibility.reasons.filter(r => r.startsWith("Warning:"));
+         if (warnings.length > 0) {
+             console.warn("⚠️ Potential Issues (Warnings):");
+             warnings.forEach(reason => console.warn(`- ${reason}`));
+         }
+    } else {
+        console.error("❌ FAILURE: Hardware does not meet model requirements.");
+        // Log only non-warning reasons for failure
+        compatibility.reasons.filter(r => !r.startsWith("Warning:")).forEach(reason => console.error(`- ${reason}`));
+         // Optionally log warnings even on failure
+         const warnings = compatibility.reasons.filter(r => r.startsWith("Warning:"));
+         if (warnings.length > 0) {
+             console.warn("⚠️ Additional Warnings:");
+             warnings.forEach(reason => console.warn(`- ${reason}`));
+         }
+    }
+    console.log("---------------------------");
+}
+
+// --- Ready Message ---
+console.log("WebGPU Hardware Info script loaded (v2). Call checkMyModel() to run the example check.");
+checkMyModel();
+    </script>
+</body>
+</html>

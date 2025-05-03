@@ -16,23 +16,57 @@ type TaskEventData = {
 type EventListener = (data: TaskEventData) => void;
 
 class Woolball {
-    private workers: Map<string, Worker>;
     private wsConnection: WebSocket | null = null;
     private clientId: string;
     private eventListeners: Map<TaskStatus, Set<EventListener>> = new Map();
+    private workerTypes: Map<string, string>;
+    private wsUrl: string;
+    private activeWorkers: Set<Worker>;
 
     constructor(id : string, url = 'ws://localhost:9003/ws') {
         verifyBrowserCompatibility();
-        this.workers = new Map();
         this.clientId = id;
+        this.wsUrl = url;
         this.eventListeners.set('started', new Set());
         this.eventListeners.set('success', new Set());
         this.eventListeners.set('error', new Set());
-        this.registerWorkers();
+        this.workerTypes = new Map();
+        this.activeWorkers = new Set();
+        
+        // Register available worker types
+        this.workerTypes.set('speech-recognition', workerCode);
+        // Add more worker types here as needed
+    }
 
-        //validate available models, talk with Alex (mrs pizzas)
+    public start(): void {
+        if (this.wsConnection) {
+            console.warn('WebSocket connection already exists');
+            return;
+        }
+        this.connectWebSocket(this.wsUrl);
+    }
 
-        this.connectWebSocket(url);
+    public destroy(): void {
+        // Close WebSocket connection if it exists
+        if (this.wsConnection) {
+            this.wsConnection.close();
+            this.wsConnection = null;
+        }
+
+        // Terminate all active workers
+        this.activeWorkers.forEach(worker => {
+            worker.terminate();
+        });
+        this.activeWorkers.clear();
+
+        // Clear all event listeners
+        this.eventListeners.clear();
+        this.eventListeners.set('started', new Set());
+        this.eventListeners.set('success', new Set());
+        this.eventListeners.set('error', new Set());
+
+        // Clear worker types
+        this.workerTypes.clear();
     }
     
     /**
@@ -132,38 +166,43 @@ class Woolball {
         return false;
     }
 
-    private registerWorkers() {
-        try {
-            if (typeof window !== 'undefined') {
-                const blob = new Blob([workerCode], { type: 'application/javascript' });
-                const workerUrl = URL.createObjectURL(blob);
-                const speechToTextWorker = new Worker(workerUrl);
-                this.workers.set('speech-recognition', speechToTextWorker);
-                console.log('Worker registrado com sucesso!');
-            } else {
-                throw new Error('Ambiente não suportado para Web Workers');
-            }
-        } catch (error) {
-            console.error('Erro ao registrar worker:', error);
+    private createWorker(type: string): Worker {
+        if (typeof window === 'undefined') {
+            throw new Error('Ambiente não suportado para Web Workers');
         }
+
+        const workerCode = this.workerTypes.get(type);
+        if (!workerCode) {
+            throw new Error(`Worker type not found: ${type}`);
+        }
+
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        const worker = new Worker(workerUrl);
+        this.activeWorkers.add(worker);
+        return worker;
+    }
+
+    private terminateWorker(worker: Worker): void {
+        worker.terminate();
+        this.activeWorkers.delete(worker);
     }
 
     public async processEvent(type : string, value: any): Promise<any> {
-        const worker = this.workers.get(type);
-        if (!worker) {
-            throw new Error(`Worker not found for key: ${type}`);
-        }
+        const worker = this.createWorker(type);
 
         return new Promise((resolve, reject) => {
             const messageHandler = (e: MessageEvent) => {
                 worker.removeEventListener('message', messageHandler);
                 worker.removeEventListener('error', errorHandler);
+                this.terminateWorker(worker);
                 resolve(e.data);
             };
 
             const errorHandler = (error: ErrorEvent) => {
                 worker.removeEventListener('message', messageHandler);
                 worker.removeEventListener('error', errorHandler);
+                this.terminateWorker(worker);
                 reject(error);
             };
 

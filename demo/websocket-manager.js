@@ -7,6 +7,52 @@ export class WebSocketManager {
     this.woolball = new Woolball.default();
     this.eventsMap = new Map();
     this.initializeWoolballEvents();
+    this.initializeControls();
+  }
+
+  initializeControls() {
+    const controls = document.createElement('div');
+    controls.classList.add('controls');
+    
+    const startButton = document.createElement('button');
+    startButton.textContent = 'Start';
+    startButton.classList.add('start-button');
+    startButton.onclick = () => this.start();
+
+    const stopButton = document.createElement('button');
+    stopButton.textContent = 'Stop';
+    stopButton.classList.add('stop-button');
+    stopButton.onclick = () => this.stop();
+
+    controls.appendChild(startButton);
+    controls.appendChild(stopButton);
+    this.container.prepend(controls);
+  }
+
+  start() {
+    this.woolball.start();
+    this.updateConnectionStatus('connected');
+  }
+
+  stop() {
+    this.woolball.destroy();
+    this.updateConnectionStatus('disconnected');
+  }
+
+  updateConnectionStatus(status) {
+    const controls = this.container.querySelector('.controls');
+    if (!controls) return;
+
+    const startButton = controls.querySelector('.start-button');
+    const stopButton = controls.querySelector('.stop-button');
+
+    if (status === 'connected') {
+      startButton.disabled = true;
+      stopButton.disabled = false;
+    } else if (status === 'disconnected') {
+      startButton.disabled = false;
+      stopButton.disabled = true;
+    }
   }
 
   initializeWoolballEvents() {
