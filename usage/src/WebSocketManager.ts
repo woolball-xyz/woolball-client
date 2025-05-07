@@ -2,40 +2,87 @@ import Woolball from 'woolball-client';
 
 export class WebSocketManager {
   private container: HTMLElement;
-  private woolball: Woolball;
+  private woolballInstances: Woolball[] = [];
   private eventsMap: Map<string, HTMLElement>;
   private onConnectionChange?: (status: 'connected' | 'disconnected' | 'loading' | 'error') => void;
+  private nodeCount: number;
 
-  constructor(containerElement: HTMLElement, onConnectionChange?: (status: 'connected' | 'disconnected' | 'loading' | 'error') => void) {
+  constructor(
+    containerElement: HTMLElement, 
+    onConnectionChange?: (status: 'connected' | 'disconnected' | 'loading' | 'error') => void,
+    nodeCount: number = 1
+  ) {
     this.container = containerElement;
-    this.woolball = new Woolball('0'); // non-tracking client
+    this.nodeCount = nodeCount;
     this.eventsMap = new Map();
     this.onConnectionChange = onConnectionChange;
+    
+    // Create the specified number of Woolball instances
+    this.createWoolballInstances();
+    
+    // Initialize event listeners for all instances
     this.initializeWoolballEvents();
-    // Iniciar automaticamente ao criar a instância
+    
+    // Start automatically when instance is created
     this.start();
+  }
+
+  private createWoolballInstances(): void {
+    console.log(`🧶 Creating ${this.nodeCount} Woolball instances`);
+    
+    // Clear any existing instances
+    this.woolballInstances = [];
+    
+    // Create the specified number of instances
+    for (let i = 0; i < this.nodeCount; i++) {
+      console.log(`🧶 Creating Woolball instance #${i+1}`);
+      const instance = new Woolball(`node-${i}`); // Use node index as ID
+      this.woolballInstances.push(instance);
+    }
+    
+    console.log(`✅ Created ${this.woolballInstances.length} Woolball instances`);
   }
 
   private start(): void {
     try {
       this.updateConnectionStatus('loading');
-      this.woolball.start();
-      // Assumimos que a conexão foi bem sucedida se não houver erro
+      
+      // Log the current node count
+      console.log(`⚙️ WebSocketManager starting with ${this.nodeCount} Woolball instances`);
+      
+      // Start each Woolball instance
+      this.woolballInstances.forEach((instance, index) => {
+        console.log(`⚙️ Starting Woolball instance #${index+1}`);
+        instance.start();
+      });
+      
+      // Assume the connection was successful if no error
       this.updateConnectionStatus('connected');
+      console.log(`✅ All ${this.woolballInstances.length} Woolball instances started successfully`);
     } catch (error) {
-      console.error('Error starting Woolball:', error);
+      console.error('❌ Error starting Woolball instances:', error);
       this.updateConnectionStatus('error');
     }
   }
 
   public destroy(): void {
     try {
-      this.woolball.destroy();
+      // Stop all Woolball instances
+      this.woolballInstances.forEach((instance, index) => {
+        console.log(`⚙️ Stopping Woolball instance #${index+1}`);
+        instance.destroy();
+      });
+      
+      // Clear instances array
+      this.woolballInstances = [];
+      
       this.updateConnectionStatus('disconnected');
       this.eventsMap.clear();
       this.container.querySelectorAll('.event-card').forEach(card => card.remove());
+      
+      console.log('✅ All Woolball instances stopped successfully');
     } catch (error) {
-      console.error('Error stopping Woolball:', error);
+      console.error('❌ Error stopping Woolball instances:', error);
       this.updateConnectionStatus('error');
     }
   }
@@ -45,21 +92,24 @@ export class WebSocketManager {
   }
 
   private initializeWoolballEvents(): void {
-    this.woolball.on('started', (evt: any) => {
-      console.log('Task started:', evt);
-      this.renderEvent({ ...evt, status: 'started' });
-    });
-    
-    this.woolball.on('success', (evt: any) => {
-      console.log('Task success:', evt);
-      this.renderEvent({ ...evt, status: 'success' });
-    });
-    
-    this.woolball.on('error', (evt: any) => {
-      console.error('Task error:', evt);
-      this.renderEvent({ ...evt, status: 'error' });
-      // Se houver erro na task, não alteramos o estado da conexão
-      // pois o erro pode ser específico da task e não da conexão
+    // Setup event listeners for each Woolball instance
+    this.woolballInstances.forEach((instance, index) => {
+      const instanceId = `node-${index+1}`;
+      
+      instance.on('started', (evt: any) => {
+        console.log(`Task started on instance #${index+1}:`, evt);
+        this.renderEvent({ ...evt, status: 'started', instance: instanceId });
+      });
+      
+      instance.on('success', (evt: any) => {
+        console.log(`Task success on instance #${index+1}:`, evt);
+        this.renderEvent({ ...evt, status: 'success', instance: instanceId });
+      });
+      
+      instance.on('error', (evt: any) => {
+        console.error(`Task error on instance #${index+1}:`, evt);
+        this.renderEvent({ ...evt, status: 'error', instance: instanceId });
+      });
     });
   }
 
@@ -72,23 +122,27 @@ export class WebSocketManager {
     return map[type] || '❓';
   }
 
-  private renderEvent({ id, type, status }: { id: string; type: string; status: string }): void {
-    let card = this.eventsMap.get(id);
+  private renderEvent({ id, type, status, instance }: { id: string; type: string; status: string; instance?: string }): void {
+    const cardId = instance ? `${instance}-${id}` : id;
+    let card = this.eventsMap.get(cardId);
 
     if (!card) {
       card = document.createElement('div');
       card.classList.add('event-card');
-      card.setAttribute('data-id', id);
+      card.setAttribute('data-id', cardId);
 
       card.innerHTML = `
         <div class="event-emoji">${this.getEmoji(type)}</div>
         <div class="event-info">
-          <div class="event-type">${type}</div>
+          <div class="event-type">
+            ${type}
+            ${instance ? `<span class="event-instance">(${instance})</span>` : ''}
+          </div>
           <div class="event-status"></div>
         </div>
       `;
       this.container.prepend(card);
-      this.eventsMap.set(id, card);
+      this.eventsMap.set(cardId, card);
     }
 
     const statusEl = card.querySelector('.event-status');
@@ -98,15 +152,15 @@ export class WebSocketManager {
 
     if (status === 'started') {
       card.classList.add('status-loading');
-      statusEl.innerHTML = `<div class="spinner"></div><span>Carregando...</span>`;
+      statusEl.innerHTML = `<div class="spinner"></div><span>Loading...</span>`;
     }
     else if (status === 'success') {
       card.classList.add('status-success');
-      statusEl.innerHTML = `✔️ Concluído`;
+      statusEl.innerHTML = `✓ Completed`;
     }
     else if (status === 'error') {
       card.classList.add('status-error');
-      statusEl.innerHTML = `❌ Erro`;
+      statusEl.innerHTML = `❌ Error`;
     }
   }
 }
