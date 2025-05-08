@@ -201,7 +201,7 @@ function App() {
         stream: true
       });
 
-      const response = await fetch('http://localhost:9002/api/v1/speech-recognition', {
+      const response = await fetch(API_URL + '/speech-recognition', {
         method: 'POST',
         body: formData
       });
