@@ -138,24 +138,24 @@ function App() {
     setFileError('');
     setProcessingStatus('Distributing tasks...');
     
-    // Primeiro estado: Distributing tasks...
+    // Inicia o fetch imediatamente em paralelo
+    const fetchPromise = fetch(fixedAudioUrl);
+    
+    // Atualizações de estado em paralelo com o fetch
     console.log('Step 1: Distributing tasks...');
     
-    // Forçar um atraso de 3 segundos neste estado
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    // Atualiza para o segundo estado após um pequeno delay
+    setTimeout(() => {
+      console.log('Step 2: Processing...');
+      setProcessingStatus('Processing...');
+    }, 2000);
     
-    // Segundo estado: Processing...
-    console.log('Step 2: Processing...');
-    setProcessingStatus('Processing...');
-    
-    // Aguarde mais 2 segundos neste estado
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Agora podemos realmente iniciar o download e processamento
+    // Continua com o processamento sem esperar pelos timeouts
     try {
       console.log(`🎤 Fetching audio from fixed URL: ${fixedAudioUrl}`);
       
-      const response = await fetch(fixedAudioUrl);
+      // Aguarda apenas o resultado do fetch que já foi iniciado
+      const response = await fetchPromise;
       if (!response.ok) {
         throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
       }
