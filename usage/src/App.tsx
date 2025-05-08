@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { WebSocketManager } from './WebSocketManager';
 import './App.css';
+import { WEBSOCKET_URL, API_URL } from './utils/env';
 
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,9 +92,8 @@ function App() {
       containerRef.current.innerHTML = '';
       console.log(`🚀 Starting Woolball with ${nodeCount} node(s)`);
       // Initialize WebSocketManager with nodeCount and WebSocket URL from env variable
-      const webSocketUrl = import.meta.env.VITE_WEBSOCKET_URL;
-      console.log(`🔌 WebSocket URL from env: ${webSocketUrl || 'Not defined, using default'}`);
-      wsManagerRef.current = new WebSocketManager(containerRef.current, setConnection, nodeCount, webSocketUrl);
+      console.log(`🔌 WebSocket URL from env: ${WEBSOCKET_URL}`);
+      wsManagerRef.current = new WebSocketManager(containerRef.current, setConnection, nodeCount);
       
       // Log the node count for verification
       console.log(`📊 Node count: ${nodeCount}`);
@@ -336,7 +336,7 @@ function App() {
 
   // Function to generate cURL command
   const generateCurlCommand = () => {
-    const apiEndpoint = import.meta.env.VITE_API_URL + '/speech-recognition';
+    const apiEndpoint = API_URL + '/speech-recognition';
     return `curl -X POST \\
   "${apiEndpoint}" \\
   -H "Content-Type: multipart/form-data" \\

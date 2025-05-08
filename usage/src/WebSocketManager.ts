@@ -1,4 +1,5 @@
 import Woolball from 'woolball-client';
+import { WEBSOCKET_URL } from './utils/env';
 
 export class WebSocketManager {
   private container: HTMLElement;
@@ -19,8 +20,8 @@ export class WebSocketManager {
     this.eventsMap = new Map();
     this.onConnectionChange = onConnectionChange;
     
-    // Use provided WebSocket URL or fallback to environment variable or default
-    this.wsUrl = wsUrl || import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:9002/api/v1/ws';
+    // Use provided WebSocket URL or fallback to environment variable
+    this.wsUrl = wsUrl || WEBSOCKET_URL;
    
     // Create the specified number of Woolball instances
     this.createWoolballInstances();
