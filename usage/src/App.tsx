@@ -336,7 +336,7 @@ function App() {
 
   // Function to generate cURL command
   const generateCurlCommand = () => {
-    const apiEndpoint = 'http://localhost:9002/api/v1/speech-recognition';
+    const apiEndpoint = import.meta.env.VITE_API_URL + '/speech-recognition';
     return `curl -X POST \\
   "${apiEndpoint}" \\
   -H "Content-Type: multipart/form-data" \\
