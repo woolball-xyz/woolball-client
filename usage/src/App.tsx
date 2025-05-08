@@ -122,14 +122,7 @@ function App() {
     console.log("Audio file state changed:", audioFile ? audioFile.name : "null");
   }, [audioFile]);
 
-  // Função para gerar cores aleatórias pastéis (mais suaves)
-  const getRandomPastelColor = () => {
-    // Gerar cores claras com alta luminosidade
-    const hue = Math.floor(Math.random() * 360); // 0-359 (todas as cores do espectro)
-    const saturation = 50 + Math.floor(Math.random() * 30); // 50-79% (moderada)
-    const lightness = 75 + Math.floor(Math.random() * 15); // 75-89% (clara)
-    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-  };
+
 
   const startProcessing = async () => {
     // Reset estados
@@ -244,15 +237,19 @@ function App() {
         
         chunkCounter++;
         
-        // Se temos dados, atualize a contagem de bytes
         if (value) {
           totalBytesReceived += value.length;
           updateBytesDisplay(totalBytesReceived);
         }
         
-        const chunk = decoder.decode(value);
+        const chunk = decoder.decode(value, {stream: true});  // Use stream: true para processamento incremental
         console.log(`📦 Chunk #${chunkCounter} received: ${value?.length || 0} bytes (total: ${totalBytesReceived} bytes)`);
-        console.log(chunk);
+        
+        // Processa o chunk imediatamente
+        if (chunk.trim()) {
+          console.log(`🔽 Chunk content: ${chunk}`);     
+          setProcessingStatus(`Receiving data... (${totalBytesReceived} bytes)`);
+        }
       }
       
       console.log('🎉 Speech Recognition process completed successfully');
