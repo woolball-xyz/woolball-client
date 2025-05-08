@@ -11,10 +11,8 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
   const [bytesReceived, setBytesReceived] = useState(0);
-  const [testResult, setTestResult] = useState<string>('');
   const [fileError, setFileError] = useState<string>('');
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
-  const [fileUrl, setFileUrl] = useState<string>('');
   const [nodeCount, setNodeCount] = useState<number>(1);
   const [repoStars, setRepoStars] = useState<number | null>(null);
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
@@ -121,31 +119,6 @@ function App() {
   useEffect(() => {
     console.log("Audio file state changed:", audioFile ? audioFile.name : "null");
   }, [audioFile]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    setFileError('');
-    
-    if (file) {
-      // Validate if it's an audio or video file
-      if (!file.type.startsWith('audio/') && !file.type.startsWith('video/')) {
-        setFileError('Please select a valid audio or video file.');
-        setAudioFile(null);
-        return;
-      }
-      
-      // Validate file size (max 50MB)
-      if (file.size > 50 * 1024 * 1024) {
-        setFileError('File size exceeds 50MB limit.');
-        setAudioFile(null);
-        return;
-      }
-      
-      setAudioFile(file);
-    } else {
-      setAudioFile(null);
-    }
-  };
 
   // Função para gerar cores aleatórias pastéis (mais suaves)
   const getRandomPastelColor = () => {
@@ -326,7 +299,7 @@ function App() {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       console.error('❌ Error in Speech Recognition process:', errorMessage);
-      setTestResult(`Error: ${errorMessage}`);
+      setFileError(`Error: ${errorMessage}`);
       setTextBlocks([]);
     } finally {
       setIsProcessing(false);
@@ -340,46 +313,6 @@ function App() {
     setProcessingStatus('Receiving data...');
   }
 
-  // Função para baixar arquivo de uma URL
-  const handleUrlSubmit = async () => {
-    if (!fileUrl.trim()) {
-      setFileError('Please enter a valid URL');
-      return;
-    }
-
-    setFileError('');
-    setIsProcessing(true);
-
-    try {
-      const response = await fetch(fileUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-      }
-
-      // Obter extensão do URL para determinar o tipo
-      const urlParts = fileUrl.split('.');
-      const extension = urlParts[urlParts.length - 1].toLowerCase();
-      
-      // Mapear extensão para MIME type
-      let mimeType = 'audio/mpeg'; // padrão
-      if (['mp3'].includes(extension)) mimeType = 'audio/mpeg';
-      if (['wav'].includes(extension)) mimeType = 'audio/wav';
-      if (['mp4'].includes(extension)) mimeType = 'video/mp4';
-      if (['ogg'].includes(extension)) mimeType = 'audio/ogg';
-      if (['webm'].includes(extension)) mimeType = 'audio/webm';
-
-      const blob = await response.blob();
-      const fileName = fileUrl.split('/').pop() || 'audio-file';
-      const file = new File([blob], fileName, { type: mimeType });
-      
-      setAudioFile(file);
-    } catch (error) {
-      console.error('Error fetching file from URL:', error);
-      setFileError(`Error fetching file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const statusText = {
     loading: 'Connecting to server... waiting for tasks',
@@ -398,43 +331,6 @@ function App() {
     }
   };
 
-  // Renderiza os blocos de texto com cores de fundo
-  const renderTextBlocks = () => {
-    if (textBlocks.length === 0) {
-      return testResult;
-    }
-    
-    return (
-      <div>
-        {textBlocks.map((block, index) => (
-          <div 
-            key={index} 
-            style={{
-              backgroundColor: block.color,
-              padding: '8px',
-              marginBottom: '8px',
-              borderRadius: '4px'
-            }}
-          >
-            {block.text}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Função de clique que OBRIGATORIAMENTE verifica se existe um arquivo
-  const onClickTestButton = (e: React.MouseEvent) => {
-    // Verifica se há um arquivo antes de continuar
-    if (!audioFile) {
-      e.preventDefault();
-      setFileError("Please select a file first");
-      return;
-    }
-    
-    // Se tudo estiver ok, inicia o processamento
-    startProcessing();
-  };
 
   // Function to generate cURL command
   const generateCurlCommand = () => {
