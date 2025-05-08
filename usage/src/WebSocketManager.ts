@@ -6,17 +6,22 @@ export class WebSocketManager {
   private eventsMap: Map<string, HTMLElement>;
   private onConnectionChange?: (status: 'connected' | 'disconnected' | 'loading' | 'error') => void;
   private nodeCount: number;
+  private wsUrl: string;
 
   constructor(
     containerElement: HTMLElement, 
     onConnectionChange?: (status: 'connected' | 'disconnected' | 'loading' | 'error') => void,
-    nodeCount: number = 1
+    nodeCount: number = 1,
+    wsUrl?: string
   ) {
     this.container = containerElement;
     this.nodeCount = nodeCount;
     this.eventsMap = new Map();
     this.onConnectionChange = onConnectionChange;
     
+    // Use provided WebSocket URL or fallback to environment variable or default
+    this.wsUrl = wsUrl || import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:9002/api/v1/ws';
+   
     // Create the specified number of Woolball instances
     this.createWoolballInstances();
     
@@ -36,7 +41,7 @@ export class WebSocketManager {
     // Create the specified number of instances
     for (let i = 0; i < this.nodeCount; i++) {
       console.log(`🧶 Creating Woolball instance #${i+1}`);
-      const instance = new Woolball(`node-${i}`); // Use node index as ID
+      const instance = new Woolball(`node-${i}`, this.wsUrl);
       this.woolballInstances.push(instance);
     }
     

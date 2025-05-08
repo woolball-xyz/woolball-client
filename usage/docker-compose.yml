@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_WEBSOCKET_URL: ws://localhost:9003/ws
     ports:
       - "3000:80"
     volumes:

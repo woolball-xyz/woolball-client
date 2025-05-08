@@ -90,8 +90,10 @@ function App() {
       // Clear any previous content first
       containerRef.current.innerHTML = '';
       console.log(`🚀 Starting Woolball with ${nodeCount} node(s)`);
-      // Initialize WebSocketManager with nodeCount
-      wsManagerRef.current = new WebSocketManager(containerRef.current, setConnection, nodeCount);
+      // Initialize WebSocketManager with nodeCount and WebSocket URL from env variable
+      const webSocketUrl = import.meta.env.VITE_WEBSOCKET_URL;
+      console.log(`🔌 WebSocket URL from env: ${webSocketUrl || 'Not defined, using default'}`);
+      wsManagerRef.current = new WebSocketManager(containerRef.current, setConnection, nodeCount, webSocketUrl);
       
       // Log the node count for verification
       console.log(`📊 Node count: ${nodeCount}`);

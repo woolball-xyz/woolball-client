@@ -11,13 +11,6 @@ coverage/
 # Compiled output
 dist/
 
-# Environment files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
 # IDE - VSCode
 .vscode/*
 !.vscode/settings.json
