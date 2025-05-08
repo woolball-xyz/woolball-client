@@ -252,46 +252,7 @@ function App() {
         
         const chunk = decoder.decode(value);
         console.log(`📦 Chunk #${chunkCounter} received: ${value?.length || 0} bytes (total: ${totalBytesReceived} bytes)`);
-        
-        try {
-          // Tenta extrair o texto do JSON
-          const data = JSON.parse(chunk);
-          
-          // Caso 1: Se o resultado é um array de objetos com propriedade text
-          if (Array.isArray(data)) {
-            for (const item of data) {
-              if (item.text) {
-                const color = getRandomPastelColor();
-                console.log(`📝 Transcription (array item): "${item.text}"`);
-                setTextBlocks(prevBlocks => [{text: item.text, color}, ...prevBlocks]);
-              }
-            }
-          }
-          // Caso 2: Se o resultado é um objeto único com propriedade text
-          else if (data.text) {
-            const color = getRandomPastelColor();
-            console.log(`📝 Transcription (single object): "${data.text}"`);
-            setTextBlocks(prevBlocks => [{text: data.text, color}, ...prevBlocks]);
-          }
-          // Caso 3: Se o resultado não tem a estrutura esperada, mostra o JSON
-          else {
-            console.log(`⚠️ No text property found in data:`, data);
-            console.dir(data); // Log full object details
-            const color = getRandomPastelColor();
-            // Tenta extrair qualquer texto presente no objeto
-            let extractedText = JSON.stringify(data);
-            console.log(`📄 Raw JSON data: ${extractedText}`);
-            setTextBlocks(prevBlocks => [{text: extractedText, color}, ...prevBlocks]);
-          }
-        } catch (e) {
-          // Se não conseguir fazer parse, mostra o chunk como texto bruto
-          console.warn('⚠️ Failed to parse chunk:', chunk, e);
-          console.log('🔍 Raw chunk content:', chunk);
-          console.error('❌ Parse error details:', e);
-          
-          const color = getRandomPastelColor();
-          setTextBlocks(prevBlocks => [{text: chunk, color}, ...prevBlocks]);
-        }
+        console.log(chunk);
       }
       
       console.log('🎉 Speech Recognition process completed successfully');
