@@ -11,12 +11,13 @@ function App() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
-  const [bytesReceived, setBytesReceived] = useState(0);
   const [fileError, setFileError] = useState<string>('');
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [nodeCount, setNodeCount] = useState<number>(1);
   const [repoStars, setRepoStars] = useState<number | null>(null);
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const timerIntervalRef = useRef<number | null>(null);
 
   // Fixed URL for audio file
   const fixedAudioUrl = "https://ia600107.us.archive.org/1/items/whizbangv3n30_2503_librivox/whizbangv3n30_00_fawcett.mp3";
@@ -48,6 +49,16 @@ function App() {
     
     // Clean up interval on component unmount
     return () => clearInterval(interval);
+  }, []);
+
+  // Clean up timer when component unmounts
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current !== null) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
   }, []);
 
   // Forcefully disable the button if there's no file
@@ -88,24 +99,15 @@ function App() {
 
   useEffect(() => {
     if (running && containerRef.current) {
-      // Clear any previous content first
       containerRef.current.innerHTML = '';
       console.log(`🚀 Starting Woolball with ${nodeCount} node(s)`);
-      // Initialize WebSocketManager with nodeCount and WebSocket URL from env variable
       console.log(`🔌 WebSocket URL from env: ${WEBSOCKET_URL}`);
       wsManagerRef.current = new WebSocketManager(containerRef.current, setConnection, nodeCount);
       
-      // Log the node count for verification
       console.log(`📊 Node count: ${nodeCount}`);
     }
     if (!running && wsManagerRef.current) {
-      console.log('📴 Stopping Woolball');
-      wsManagerRef.current.destroy();
-      wsManagerRef.current = null;
-      if (containerRef.current) {
-        containerRef.current.innerHTML = '';
-      }
-      setConnection('disconnected');
+      stopWebSocketManager();
     }
     
     return () => {
@@ -122,14 +124,33 @@ function App() {
     console.log("Audio file state changed:", audioFile ? audioFile.name : "null");
   }, [audioFile]);
 
-
+  // Helper function to properly stop and clean up the WebSocketManager
+  const stopWebSocketManager = () => {
+    if (wsManagerRef.current) {
+      console.log('📴 Stopping Woolball service');
+      wsManagerRef.current.destroy();
+      wsManagerRef.current = null;
+    }
+    
+    if (containerRef.current) {
+      containerRef.current.innerHTML = '';
+    }
+    
+    setConnection('disconnected');
+  };
 
   const startProcessing = async () => {
     // Reset estados
     setIsProcessing(true);
-    setBytesReceived(0);
     setFileError('');
     setProcessingStatus('Distributing tasks...');
+    setElapsedTime(0);
+    
+    // Start the timer
+    const startTime = Date.now();
+    timerIntervalRef.current = window.setInterval(() => {
+      setElapsedTime(Date.now() - startTime);
+    }, 100);
     
     // Inicia o fetch imediatamente em paralelo
     const fetchPromise = fetch(fixedAudioUrl);
@@ -207,7 +228,6 @@ function App() {
 
       console.log('✅ API response received, starting stream processing');
       
-      // Process the stream
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       
@@ -216,15 +236,9 @@ function App() {
         throw new Error('Failed to get response reader');
       }
       
-      // Terceiro estado: Receiving data...
       console.log('Step 3: Receiving data...');
       
-      // Variável local para manter o controle dos bytes 
-      // (evita problemas com closure e state)
       let totalBytesReceived = 0;
-      
-      // Iniciar com 0 KB
-      updateBytesDisplay(0);
       
       let chunkCounter = 0;
       
@@ -232,6 +246,14 @@ function App() {
         const { done, value } = await reader.read();
         if (done) {
           console.log('📝 Stream completed');
+          setProcessingStatus("Completed: Success, open DevTools to see results");
+          
+          // Stop the timer when stream is complete
+          if (timerIntervalRef.current !== null) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
+          
           break;
         }
         
@@ -242,35 +264,36 @@ function App() {
           updateBytesDisplay(totalBytesReceived);
         }
         
-        const chunk = decoder.decode(value, {stream: true});  // Use stream: true para processamento incremental
-        console.log(`📦 Chunk #${chunkCounter} received: ${value?.length || 0} bytes (total: ${totalBytesReceived} bytes)`);
+        const chunk = decoder.decode(value, {stream: true});
+        console.log(`📦 Chunk #${chunkCounter} received: ${value?.length || 0} bytes`);
         
-        // Processa o chunk imediatamente
         if (chunk.trim()) {
-          console.log(`🔽 Chunk content: ${chunk}`);     
-          setProcessingStatus(`Receiving data... (${totalBytesReceived} bytes)`);
+          console.log(`🔽 Chunk content: ${chunk}`);
         }
       }
       
       console.log('🎉 Speech Recognition process completed successfully');
       
-      // Set a final success status with bytes received info
-      setProcessingStatus(`${totalBytesReceived} bytes received - Check DevTools for results`);
+      setProcessingStatus("Success, open DevTools to see results");
+      
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       console.error('❌ Error in Speech Recognition process:', errorMessage);
       setFileError(`Error: ${errorMessage}`);
       setTextBlocks([]);
+      
+      // Clear the timer interval on error
+      if (timerIntervalRef.current !== null) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Função auxiliar para atualizar a exibição de bytes
   function updateBytesDisplay(bytes: number) {
-    setBytesReceived(bytes);
-    // Apenas defina o status base, o componente vai mostrar os bytes separadamente
-    setProcessingStatus('Receiving data...');
+    setProcessingStatus(`Receiving data: ${bytes} bytes`);
   }
 
 
@@ -284,6 +307,7 @@ function App() {
   const handleButton = () => {
     if (running) {
       console.log('🛑 Stopping Woolball service');
+      stopWebSocketManager();
       setRunning(false);
     } else {
       console.log(`▶️ Starting Woolball service with ${nodeCount} node(s)`);
@@ -318,11 +342,17 @@ function App() {
       });
   };
 
+  // Format elapsed time as seconds with one decimal place
+  const formatElapsedTime = (ms: number): string => {
+    const seconds = (ms / 1000).toFixed(1);
+    return `${seconds}s`;
+  };
+
   return (
     <div className="main-bg central-layout">
       <header className="app-header">
         <span className={`logo-dot connection-${connection}`} title={statusText} />
-        <h1 className="app-title">AI Node</h1>
+        <h1 className="app-title">browser-based <span className="ai-gradient">AI</span> engine</h1>
         <button 
           onClick={() => setRightDrawerOpen(prev => !prev)}
           className="drawer-toggle"
@@ -350,13 +380,11 @@ function App() {
         </a>
       </div>
 
-      <div className="central-content">
+      <div className={`central-content ${running ? 'running' : ''}`}>
         <div className="content-wrapper">
           <div className="main-content-area">
             {running ? (
-              // Show only the events container when running
               <div ref={containerRef} className="events-container">
-                {/* Events will be dynamically added here */}
               </div>
             ) : (
               // Show the configuration UI only when not running
@@ -378,13 +406,13 @@ function App() {
                       </div>
                       <button 
                         className="node-control-btn" 
-                        onClick={() => setNodeCount(prev => Math.min(16, prev + 1))}
+                        onClick={() => setNodeCount(prev => Math.min(3, prev + 1))}
                       >
                         +
                       </button>
                     </div>
                     <div className="node-description">
-                      Each node represents a separate Woolball instance running in parallel.
+                      Each node represents a separate instance running.
                       <span className="node-description-icon">🧶</span>
                     </div>
                   </div>
@@ -436,10 +464,10 @@ function App() {
       <div className="fixed-bottom-bar">
         <div className="test-cards-container">
           {/* Speech Recognition Test Card */}
-          <div className="http-test-card">
+          <div className="http-test-card">  
             <div className="http-test-top-line">
-              <div className="http-test-method">POST</div>
-              <span className="http-test-service-name">Speech to text</span>
+              <div className="http-test-method">SPEECH TO TEXT</div>
+              <span className="http-test-service-name">HTTP REQUEST</span>
             </div>
             <div className="http-test-header">
               <span className="http-test-title">onnx-community/whisper-small</span>
@@ -478,16 +506,13 @@ function App() {
               <div className="processing-indicator">
                 <span className="spinner"></span>
                 {processingStatus}
-                {bytesReceived > 0 && (
-                  <span className="bytes-counter">({bytesReceived} bytes)</span>
-                )}
+                <span className="elapsed-time">{formatElapsedTime(elapsedTime)}</span>
               </div>
-            ) : textBlocks.length > 0 ? (
+            ) : textBlocks.length > 0 || processingStatus?.includes("Success") ? (
               <div className="success-message">
                 <span className="check-icon">✓</span>
-                {processingStatus && processingStatus.includes("Completed") 
-                  ? processingStatus 
-                  : "Check DevTools for results"}
+                {processingStatus}
+                <span className="elapsed-time">{formatElapsedTime(elapsedTime)}</span>
               </div>
             ) : !running ? (
               <div className="waiting-message">

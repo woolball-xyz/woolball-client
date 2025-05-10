@@ -15,7 +15,6 @@
   --uber-red: #FF0000;
   --uber-yellow: #FFD600;
   
-  /* Layout variables */
   --header-height: 56px;
   --bottom-nav-height: 56px;
   --side-padding-mobile: 16px;
@@ -24,7 +23,6 @@
   --content-max-width: 1200px;
 }
 
-/* Reset and base styles */
 * {
   margin: 0;
   padding: 0;
@@ -56,7 +54,6 @@ body {
   background-color: var(--uber-white);
 }
 
-/* Layout containers */
 .central-layout {
   flex: 1;
   display: flex;
@@ -137,7 +134,6 @@ body {
 
 .content-wrapper {
   flex: 1;
-  padding: 24px;
   margin: 0 auto;
   max-width: var(--content-max-width);
   width: 100%;
@@ -149,7 +145,6 @@ body {
   align-items: center;
 }
 
-/* Shared styles for both active and inactive modes */
 .events-container,
 .node-selector-container,
 .inactive-placeholder {
@@ -177,11 +172,11 @@ body {
   flex-grow: 1;
   margin-left: auto;
   margin-right: auto;
+  margin-top: 16px;
 }
 
-@keyframes fadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+.events-container::before {
+  content: none;
 }
 
 .no-events-message {
@@ -256,17 +251,21 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 1;
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .event-instance {
   font-size: 12px;
   color: var(--uber-gray-600);
-  margin-left: 4px;
   padding: 2px 6px;
   background-color: var(--uber-gray-100);
   border-radius: 4px;
   white-space: nowrap;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .event-status {
@@ -281,7 +280,6 @@ body {
   flex-shrink: 0;
 }
 
-/* Status styles */
 .status-loading .event-status {
   color: var(--uber-gray-600);
 }
@@ -294,7 +292,6 @@ body {
   color: var(--uber-red);
 }
 
-/* Bottom navigation */
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -323,9 +320,8 @@ body {
   color: var(--uber-black);
 }
 
-/* Mobile links styling */
 .mobile-links {
-  display: none; /* Hidden by default on all screens */
+  display: none;
   gap: 8px;
   position: fixed;
   left: 0;
@@ -345,7 +341,6 @@ body {
   border-radius: 4px;
 }
 
-/* Responsive breakpoints */
 @media (min-width: 768px) {
   :root {
     --side-padding-mobile: var(--side-padding-tablet);
@@ -359,13 +354,11 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
   
-  /* Hide mobile links on tablets and above */
   .mobile-links {
     display: none;
   }
 
   .content-wrapper {
-    padding: 24px;
     max-width: 90%;
   }
 }
@@ -458,9 +451,8 @@ body {
 }
 
 @media (max-width: 767px) {
-  /* Show mobile links in header for mobile */
   .mobile-links {
-    display: flex !important; /* Force display with !important */
+    display: flex !important;
   }
   
   .mobile-links .repo-link {
@@ -472,22 +464,25 @@ body {
     max-width: 300px;
   }
   
-  /* Adjust central content to make room for links */
   .central-content {
-    margin-top: calc(var(--header-height) + 32px);
+    margin-top: calc(var(--header-height) + 48px);
     height: calc(100vh - var(--header-height) - 120px - 32px);
     max-height: calc(100vh - var(--header-height) - 120px - 32px);
   }
   
-  /* Ensure the right drawer doesn't overlap mobile links */
   .right-drawer {
     top: calc(var(--header-height) + 32px);
     height: calc(100vh - var(--header-height) - 32px);
   }
   
-  /* Other existing styles */
+  .app-header {
+    padding-bottom: 12px;
+  }
+  
   .app-title {
-    font-size: 18px;
+    margin-top: 18px;
+    margin-bottom: 18px;
+    font-size: 20px;
   }
   
   .content-wrapper {
@@ -551,7 +546,6 @@ body {
   }
 }
 
-/* Animations */
 @keyframes pulse {
   0% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -640,7 +634,6 @@ body {
   }
 }
 
-/* Estilo para o botão de seleção de arquivo */
 .select-file-button {
   background-color: #4a4a4a;
   color: white;
@@ -691,7 +684,6 @@ body {
   color: var(--uber-red);
 }
 
-/* Novos estilos para as tabs de upload/URL */
 .file-input-tabs {
   display: flex;
   margin-bottom: 10px;
@@ -759,7 +751,6 @@ body {
   cursor: not-allowed;
 }
 
-/* Play button styling */
 .play-button {
   width: 32px;
   height: 32px;
@@ -790,7 +781,6 @@ body {
   cursor: not-allowed;
 }
 
-/* Processing state for play button */
 .play-button.processing {
   background-color: var(--uber-gray-400);
   cursor: not-allowed;
@@ -814,7 +804,6 @@ body {
   margin-top: 4px;
 }
 
-/* Fixed bottom bar */
 .fixed-bottom-bar {
   width: 100%;
   background-color: var(--uber-gray-50);
@@ -856,12 +845,10 @@ body {
   min-width: 300px;
   max-width: 420px !important;
   flex: 0 0 auto;
-  height: auto;
   width: 420px;
   overflow: hidden;
 }
 
-/* Media queries para ajustes com base na altura */
 @media (max-height: 700px) {
   .event-card {
     padding: 8px 12px;
@@ -924,7 +911,6 @@ body {
   }
 }
 
-/* Específico para o WebSocketManager */
 #containerRef div {
   width: 100% !important;
 }
@@ -934,7 +920,6 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* Ajuste específico para dispositivos com tela muito pequena */
 @media (max-height: 570px) {
   .central-content {
     height: calc(100vh - var(--header-height) - 90px);
@@ -950,10 +935,7 @@ html, body, #root {
     display: none;
   }
   
-  .http-test-card {
-    padding: 6px 10px;
-    min-height: 80px;
-  }
+
   
   .no-events-message {
     font-size: 12px;
@@ -967,7 +949,6 @@ html, body, #root {
   }
 }
 
-/* Ajuste específico para dispositivos com tela extremamente pequena */
 @media (max-height: 480px) {
   .app-subtitle {
     display: none;
@@ -1051,8 +1032,7 @@ html, body, #root {
 }
 
 .node-control-btn:hover:not(:disabled) {
-  background-color: var(--uber-gray-800);
-  transform: scale(1.05);
+  transform: scale(1.03);
 }
 
 .node-control-btn:active:not(:disabled) {
@@ -1102,7 +1082,6 @@ html, body, #root {
   font-size: 14px;
 }
 
-/* Media queries for height adjustments */
 @media (max-height: 570px) {
   .node-selector-container {
     padding: 8px;
@@ -1172,7 +1151,6 @@ html, body, #root {
   margin-bottom: 0;
 }
 
-/* Media queries for height adjustments */
 @media (max-height: 570px) {
   .inactive-placeholder {
     padding: 16px;
@@ -1242,13 +1220,14 @@ html, body, #root {
 
 .app-title {
   font-size: 20px;
-  font-weight: 500;
+  font-weight: 900;
   margin: 0;
-  letter-spacing: -0.2px;
+  letter-spacing: 2px;
   color: var(--uber-black);
+  font-family: 'Bebas Neue', 'Oswald', 'Anton', 'Montserrat Black', Impact, sans-serif;
+  text-transform: uppercase;
 }
 
-/* Connection status dot */
 .logo-dot {
   width: 10px;
   height: 10px;
@@ -1260,7 +1239,8 @@ html, body, #root {
 
 .connection-connected {
   background-color: var(--uber-green);
-  animation: pulse 2s infinite;
+  animation: pulse 2s infinite, nodeGlow 1.5s infinite alternate;
+  box-shadow: 0 0 0 0 rgba(6, 193, 103, 0.7), 0 0 8px 2px rgba(6, 193, 103, 0.25);
 }
 
 .connection-disconnected {
@@ -1276,20 +1256,19 @@ html, body, #root {
   background-color: var(--uber-red);
 }
 
-/* HTTP Test Card styling */
 .http-test-card {
   background-color: var(--uber-white);
   border: 1px solid var(--uber-gray-200);
   border-radius: 8px;
-  padding: 16px;
+  padding: 8px 25px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
   width: 100%;
   margin: 0;
   box-sizing: border-box;
-  min-height: 170px;
+  height: 135px;
   max-width: 420px !important;
   overflow: hidden;
 }
@@ -1297,6 +1276,14 @@ html, body, #root {
 .http-test-card:hover {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
   border-color: var(--uber-gray-300);
+}
+
+.http-test-top-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  padding: 3px 0;
 }
 
 .http-test-method {
@@ -1307,22 +1294,14 @@ html, body, #root {
   border-radius: 4px;
   font-size: 10px;
   font-weight: 500;
-  margin-bottom: 6px;
   letter-spacing: 0.5px;
-}
-
-/* New style for the top line容器 of method and service name */
-.http-test-top-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
 }
 
 .http-test-service-name {
   font-size: 11px;
   color: var(--uber-gray-600);
   font-weight: 500;
+  padding: 3px 6px;
 }
 
 .http-test-header {
@@ -1330,8 +1309,9 @@ html, body, #root {
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  margin-top: 2px;
-  margin-bottom: 8px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  padding: 3px 0;
 }
 
 .http-test-title {
@@ -1349,8 +1329,22 @@ html, body, #root {
   gap: 8px;
   font-size: 13px;
   color: var(--uber-gray-600);
-  margin-top: 2px;
+  margin-top: 0;
   flex-wrap: wrap;
+  position: relative;
+  min-height: 24px;
+  padding: 4px 0;
+}
+
+.processing-indicator .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .bytes-counter {
@@ -1359,32 +1353,45 @@ html, body, #root {
   margin-left: 2px;
 }
 
-.processing-indicator .spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid transparent;
-  border-top-color: var(--uber-black);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+.elapsed-time {
+  position: absolute;
+  right: 0;
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--uber-gray-700);
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
 }
 
 .success-message {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   font-size: 13px;
   color: var(--uber-green);
-  margin-top: 2px;
   overflow-wrap: break-word;
   word-wrap: break-word;
   width: 100%;
   line-height: 1.4;
+  position: relative;
+  min-height: 24px;
+  padding: 4px 0;
 }
 
 .check-icon {
   font-size: 15px;
   flex-shrink: 0;
-  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.success-message .elapsed-time {
+  color: var(--uber-green);
+  background-color: rgba(6, 193, 103, 0.1);
 }
 
 .file-error {
@@ -1393,7 +1400,6 @@ html, body, #root {
   margin-top: 5px;
 }
 
-/* Mobile links styling - improved */
 .mobile-links {
   display: none;
   gap: 8px;
@@ -1493,7 +1499,6 @@ html, body, #root {
   }
 }
 
-/* Add spinner for the event cards */
 .spinner {
   width: 14px;
   height: 14px;
@@ -1520,12 +1525,40 @@ html, body, #root {
   justify-content: center;
 }
 
-/* New style for the main content switching area */
 .main-content-area {
   width: 100%;
   height: 400px;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+.main-content-area::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: calc(50% - 210px);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--uber-gray-600);
+  letter-spacing: 1px;
+  z-index: 10;
+  background-color: var(--uber-white);
+  padding: 2px 8px;
+  border: 1px solid var(--uber-gray-200);
+  border-radius: 4px;
+  line-height: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  opacity: 0;
+}
+
+.running .main-content-area::before {
+  content: '🧶 AI TASKS';
+  opacity: 1;
 }
 
 .events-container,
@@ -1557,7 +1590,7 @@ html, body, #root {
 .card-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   position: relative;
 }
 
@@ -1565,7 +1598,6 @@ html, body, #root {
   position: relative;
 }
 
-/* Common tooltip styles */
 .tooltip {
   position: absolute;
   background-color: rgba(0, 0, 0, 0.85);
@@ -1583,7 +1615,6 @@ html, body, #root {
   z-index: 10;
 }
 
-/* After element for tooltip arrow */
 .tooltip::after {
   content: '';
   position: absolute;
@@ -1595,14 +1626,12 @@ html, body, #root {
   background-color: rgba(0, 0, 0, 0.85);
 }
 
-/* Show tooltip on hover */
 .copy-curl-button:hover .tooltip,
 .play-button:hover .tooltip {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
 
-/* Common button styles */
 .copy-curl-button,
 .play-button {
   width: 32px;
@@ -1630,14 +1659,12 @@ html, body, #root {
   transform: scale(0.95);
 }
 
-/* Processing state for play button */
 .play-button.processing {
   background-color: var(--uber-gray-400);
   cursor: not-allowed;
   transform: none;
 }
 
-/* Specific button styling */
 .copy-curl-button {
   background-color: var(--uber-gray-100);
 }
@@ -1687,17 +1714,68 @@ html, body, #root {
   gap: 8px;
   font-size: 13px;
   color: var(--uber-gray-600);
-  margin-top: 2px;
   flex-wrap: wrap;
-  padding: 2px 0;
   width: 100%;
   line-height: 1.4;
+  min-height: 24px;
+  padding: 4px 0;
+  position: relative;
 }
 
 .info-icon {
   font-size: 14px;
   flex-shrink: 0;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
+  line-height: 1;
 }
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.ai-gradient {
+  background: linear-gradient(270deg, #ff9800, #ff6d00, #ffb300, #ff8c1a, #ff9800);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  animation: aiGradientMove 8s ease-in-out infinite;
+  font-family: 'Bebas Neue', 'Oswald', 'Anton', 'Montserrat Black', Impact, sans-serif;
+  font-weight: 900;
+  letter-spacing: 2px;
+  font-size: inherit;
+  text-transform: uppercase;
+  vertical-align: baseline;
+}
+
+@keyframes aiGradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes nodeGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(6, 193, 103, 0.7), 0 0 8px 2px rgba(6, 193, 103, 0.25);
+    transform: scale(1);
+  }
+  60% {
+    box-shadow: 0 0 0 8px rgba(6, 193, 103, 0.15), 0 0 16px 4px rgba(6, 193, 103, 0.25);
+    transform: scale(1.18);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(6, 193, 103, 0.7), 0 0 8px 2px rgba(6, 193, 103, 0.25);
+    transform: scale(1);
+  }
+}
+
