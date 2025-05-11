@@ -843,9 +843,9 @@ body {
 
 .test-cards-container .http-test-card {
   min-width: 300px;
-  max-width: 420px !important;
+  max-width: 390px !important;
   flex: 0 0 auto;
-  width: 420px;
+  width: 390px;
   overflow: hidden;
 }
 
