@@ -36,7 +36,7 @@
     "webgpu"
   ],
   "author": "Eduardo Worrel",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "bugs": {
     "url": "https://github.com/eduardoworrel/woolball-client/issues"
   },
