@@ -9,7 +9,7 @@ export async function asr(data: TaskData): Promise<TaskResult> {
   const { pipeline } = await import('@huggingface/transformers');
   const pipe = await pipeline('automatic-speech-recognition', model, {
     dtype: dtype as any,
-    device: 'wasm',
+    device: 'webgpu',
   });
   
   const result = await pipe(audioData, options);

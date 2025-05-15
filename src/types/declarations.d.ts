@@ -17,7 +17,7 @@ declare module 'kokoro-js' {
     generate(
       text: string,
       options?: { voice?: string }
-    ): Promise<{ buffer: ArrayBuffer }>;
+    ): Promise<any>;
 
     list_voices(): string[];
 

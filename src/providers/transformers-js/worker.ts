@@ -5,6 +5,7 @@ export const process = async ({ data }: MessageEvent) => {
 
     try {
 
+
         for (const key in taskData) {
             if (taskData[key] === 'true') {
                 taskData[key] = true;
@@ -16,20 +17,44 @@ export const process = async ({ data }: MessageEvent) => {
         
         const processor = taskProcessors[task as TaskType];
         if (!processor) {
-            throw new Error(`Tarefa não suportada: ${task}`);
+            console.error(`[Worker] Error: Unsupported task: ${task}`);
+            throw new Error(`Unsupported task: ${task}`);
         }
         
-        const result = await processor(taskData);
+        console.log(`[Worker] Processing task ${task} with processor`);
         
-        self.postMessage(result);
+        try {
+            const result = await processor(taskData);
+            console.log(`[Worker] Task ${task} completed successfully`);
+            self.postMessage(result);
+        } catch (processorError) {
+            console.error(`[Worker] Error in ${task} processor:`, processorError);
+            
+            // Report error without specific filtering
+            const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
+            self.postMessage({ error: errorMessage });
+            
+            throw processorError; // Re-throw for logging
+        }
 
     } catch (e) {
-        console.error('Erro no worker:', e);
-        self.postMessage({ error: e instanceof Error ? e.message : String(e) });
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        const errorStack = e instanceof Error ? e.stack : 'No stack trace available';
+        
+        console.error('[Worker] Error:', errorMessage);
+        console.error('[Worker] Stack:', errorStack);
+        
+        // We've already sent the message in the inner try/catch if it was a processor error
+        if (!(e instanceof Error && e.message.includes('processor'))) {
+            self.postMessage({ error: errorMessage });
+        }
     }
 };
 
 self.onmessage = (event: MessageEvent) => {
-    process(event);
+    console.log('[Worker] Message received');
+    process(event).catch(err => {
+        console.error('[Worker] Unhandled error:', err);
+    });
 };
   

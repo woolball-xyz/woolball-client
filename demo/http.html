@@ -4,6 +4,68 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Tasks Demo</title>
+  <script>
+    // Script global para capturar erros, inclusive de workers e operações assíncronas
+    window.addEventListener('error', function(event) {
+      console.error('[GLOBAL ERROR]', event.error || event.message);
+      // Opcional: mostrar em algum elemento visual
+      const errorBanner = document.createElement('div');
+      errorBanner.style.position = 'fixed';
+      errorBanner.style.top = '0';
+      errorBanner.style.left = '0';
+      errorBanner.style.right = '0';
+      errorBanner.style.backgroundColor = '#ff4d4d';
+      errorBanner.style.color = 'white';
+      errorBanner.style.padding = '8px';
+      errorBanner.style.zIndex = '9999';
+      errorBanner.style.textAlign = 'center';
+      errorBanner.innerText = event.error ? event.error.message : event.message;
+      document.body.appendChild(errorBanner);
+      setTimeout(() => errorBanner.remove(), 5000);
+    });
+
+    // Redireciona logs do console para também exibir visualmente
+    const originalConsoleError = console.error;
+    console.error = function(...args) {
+      originalConsoleError.apply(console, args);
+      
+      // Criar ou atualizar área de logs
+      let logArea = document.getElementById('console-log-area');
+      if (!logArea) {
+        logArea = document.createElement('div');
+        logArea.id = 'console-log-area';
+        logArea.style.position = 'fixed';
+        logArea.style.bottom = '0';
+        logArea.style.right = '0';
+        logArea.style.width = '400px';
+        logArea.style.maxHeight = '200px';
+        logArea.style.backgroundColor = 'rgba(0,0,0,0.8)';
+        logArea.style.color = 'white';
+        logArea.style.padding = '10px';
+        logArea.style.fontFamily = 'monospace';
+        logArea.style.fontSize = '12px';
+        logArea.style.overflowY = 'auto';
+        logArea.style.zIndex = '9998';
+        document.body.appendChild(logArea);
+      }
+      
+      const logEntry = document.createElement('div');
+      logEntry.style.borderBottom = '1px solid #333';
+      logEntry.style.padding = '3px 0';
+      logEntry.style.color = '#ff6666';
+      logEntry.textContent = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      ).join(' ');
+      
+      logArea.appendChild(logEntry);
+      logArea.scrollTop = logArea.scrollHeight;
+      
+      // Limita o número de entradas
+      while (logArea.childNodes.length > 20) {
+        logArea.removeChild(logArea.firstChild);
+      }
+    };
+  </script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -157,22 +219,39 @@
         </select>
         
         <label for="ttsDtypeInput">Dtype</label>
-        <input type="text" id="ttsDtypeInput" value="q4">
+        <input type="text" id="ttsDtypeInput" value="q8">
         
         <div id="kokoroVoiceContainer" class="hidden">
           <label for="ttsVoiceInput">Voice (Kokoro voices)</label>
           <select id="ttsVoiceInput">
-            <option value="af">Default (American Female)</option>
+            <option value="af_heart">Heart (American Female)</option>
+            <option value="af_alloy">Alloy (American Female)</option>
+            <option value="af_aoede">Aoede (American Female)</option>
             <option value="af_bella">Bella (American Female)</option>
+            <option value="af_jessica">Jessica (American Female)</option>
+            <option value="af_kore">Kore (American Female)</option>
             <option value="af_nicole">Nicole (American Female)</option>
+            <option value="af_nova">Nova (American Female)</option>
+            <option value="af_river">River (American Female)</option>
             <option value="af_sarah">Sarah (American Female)</option>
             <option value="af_sky">Sky (American Female)</option>
             <option value="am_adam">Adam (American Male)</option>
+            <option value="am_echo">Echo (American Male)</option>
+            <option value="am_eric">Eric (American Male)</option>
+            <option value="am_fenrir">Fenrir (American Male)</option>
+            <option value="am_liam">Liam (American Male)</option>
             <option value="am_michael">Michael (American Male)</option>
+            <option value="am_onyx">Onyx (American Male)</option>
+            <option value="am_puck">Puck (American Male)</option>
+            <option value="am_santa">Santa (American Male)</option>
             <option value="bf_emma">Emma (British Female)</option>
             <option value="bf_isabella">Isabella (British Female)</option>
+            <option value="bf_alice">Alice (British Female)</option>
+            <option value="bf_lily">Lily (British Female)</option>
             <option value="bm_george">George (British Male)</option>
             <option value="bm_lewis">Lewis (British Male)</option>
+            <option value="bm_daniel">Daniel (British Male)</option>
+            <option value="bm_fable">Fable (British Male)</option>
           </select>
         </div>
       </div>
@@ -193,10 +272,10 @@
         <input type="text" id="translationModelInput" value="Xenova/nllb-200-distilled-600M">
         
         <label for="translationDtypeInput">Dtype</label>
-        <input type="text" id="translationDtypeInput" value="q4">
+        <input type="text" id="translationDtypeInput" value="q8">
         
-        <label for="srcLangInput">Source Language</label>
-        <input type="text" id="srcLangInput" value="eng_Latn">
+        <label for="source_lang">Source Language</label>
+        <input type="text" id="source_lang" value="eng_Latn">
         
         <label for="tgtLangInput">Target Language</label>
         <input type="text" id="tgtLangInput" value="por_Latn">
@@ -214,13 +293,13 @@
         <textarea id="systemPromptInput">You are a helpful assistant.</textarea>
         
         <label for="userPromptInput">User Prompt</label>
-        <textarea id="userPromptInput" placeholder="Enter your prompt"></textarea>
+        <textarea id="userPromptInput" placeholder="Enter your prompt">What is the capital of the Brazil?</textarea>
         
         <label for="textGenModelInput">Model</label>
-        <input type="text" id="textGenModelInput" value="Xenova/Llama-2-7b-gguf">
+        <input type="text" id="textGenModelInput" value="HuggingFaceTB/SmolLM2-135M-Instruct">
         
         <label for="textGenDtypeInput">Dtype</label>
-        <input type="text" id="textGenDtypeInput" value="q4">
+        <input type="text" id="textGenDtypeInput" value="fp16">
         
         <label for="maxTokensInput">Max Tokens</label>
         <input type="number" id="maxTokensInput" value="250">
@@ -368,10 +447,62 @@
           // Display info in result area
           document.getElementById('result').textContent = 'Audio generated successfully!';
           
-          // Create audio player
-          const audioSrc = `data:audio/wav;base64,${result.audio}`;
-          ttsAudio.src = audioSrc;
-          ttsAudio.style.display = 'block';
+          try {
+            console.log('Recebido áudio base64, processando...');
+            // Usar nosso novo método para processar o áudio
+            const audioData = httpClient.createAudioFromBase64(result.audio);
+            
+            // Definir a fonte do elemento de áudio
+            ttsAudio.src = audioData.url;
+            ttsAudio.style.display = 'block';
+            
+            // Adicionar detalhes ao resultado para depuração
+            const audioInfoDiv = document.createElement('div');
+            audioInfoDiv.classList.add('audio-info');
+            audioInfoDiv.innerHTML = `
+              <h3>Informações do áudio</h3>
+              <ul>
+                <li>Tipo MIME: ${audioData.mimeType}</li>
+                <li>Tamanho do blob: ${(audioData.blob.size / 1024).toFixed(2)} KB</li>
+                <li>Duração: <span id="audioDuration">carregando...</span></li>
+              </ul>
+              <details>
+                <summary>Base64 Preview (primeiros 50 caracteres)</summary>
+                <pre>${result.audio.substring(0, 50)}...</pre>
+              </details>
+            `;
+            
+            // Substituir o texto antigo
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = '';
+            resultDiv.appendChild(audioInfoDiv);
+            
+            // Mostrar a duração do áudio quando carregar
+            ttsAudio.onloadedmetadata = function() {
+              document.getElementById('audioDuration').textContent = `${ttsAudio.duration.toFixed(2)} segundos`;
+            };
+            
+            // Manipular erro de carregamento
+            ttsAudio.onerror = function() {
+              console.error('Erro ao carregar áudio:', ttsAudio.error);
+              document.getElementById('result').textContent = `Erro ao carregar áudio: ${ttsAudio.error?.message || 'Erro desconhecido'}`;
+            };
+          } catch (audioError) {
+            console.error('Erro ao processar o áudio base64:', audioError);
+            document.getElementById('result').textContent = `Erro ao processar áudio: ${audioError.message}`;
+            
+            // Exibir os primeiros caracteres do base64 para ajudar na depuração
+            if (result.audio) {
+              const errorDetails = document.createElement('details');
+              errorDetails.innerHTML = `
+                <summary>Detalhes do erro</summary>
+                <p>Erro: ${audioError.message}</p>
+                <p>Base64 recebido (primeiros 50 caracteres):</p>
+                <pre>${result.audio.substring(0, 50)}...</pre>
+              `;
+              document.getElementById('result').appendChild(errorDetails);
+            }
+          }
         } else if (result.error) {
           document.getElementById('result').textContent = `Error: ${result.error}`;
         }
@@ -395,7 +526,7 @@
     const translationStatus = document.getElementById('translationStatus');
     const translationModelInput = document.getElementById('translationModelInput');
     const translationDtypeInput = document.getElementById('translationDtypeInput');
-    const srcLangInput = document.getElementById('srcLangInput');
+    const source_lang = document.getElementById('source_lang');
     const tgtLangInput = document.getElementById('tgtLangInput');
     
     translationBtn.addEventListener('click', async function() {
@@ -412,7 +543,7 @@
         const response = await httpClient.processTranslation(translationInput.value, {
           model: translationModelInput.value,
           dtype: translationDtypeInput.value,
-          srcLang: srcLangInput.value,
+          srcLang: source_lang.value,
           tgtLang: tgtLangInput.value
         });
 
