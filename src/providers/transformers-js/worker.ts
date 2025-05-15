@@ -1,44 +1,25 @@
-import { processAudio } from '../../utils/media';
+import { taskProcessors, TaskType } from '../../utils/tasks';
 
 export const process = async ({ data }: MessageEvent) => {
-    const {
-        input,
-        task,
-        dtype,
-        model,
-        ...rest
-    } = data;
+    const { task, ...taskData } = data;
 
     try {
-        let pipeInput;
 
-        if(task === 'automatic-speech-recognition'){
-            pipeInput = processAudio(input);
-        }
-
-        if(pipeInput === undefined){
-            throw new Error('invalid task');
-        }
-
-        for (const key in rest) {
-            if (rest[key] === 'true') {
-                rest[key] = true;
+        for (const key in taskData) {
+            if (taskData[key] === 'true') {
+                taskData[key] = true;
             }
-            if (rest[key] === 'false') {
-                rest[key] = false;
+            if (taskData[key] === 'false') {
+                taskData[key] = false;
             }
         }
-
-        const { pipeline } = await import('@huggingface/transformers');
-        const pipe = await pipeline(task, model, {
-            dtype: dtype,
-            device: 'webgpu',
-        });
-
-        const result = await pipe(pipeInput, rest);
         
-        // Dispose the pipeline after use
-        await pipe.dispose();
+        const processor = taskProcessors[task as TaskType];
+        if (!processor) {
+            throw new Error(`Tarefa não suportada: ${task}`);
+        }
+        
+        const result = await processor(taskData);
         
         self.postMessage(result);
 
