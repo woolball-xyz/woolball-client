@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HTTP Demo - Speech to Text</title>
+  <title>AI Tasks Demo</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -22,6 +22,8 @@
       background-color: #f5f5f5;
       padding: 10px;
       border-radius: 4px;
+      max-height: 300px;
+      overflow-y: auto;
     }
     .status {
       color: #666;
@@ -34,20 +36,80 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      margin-top: 10px;
     }
     button:disabled {
       background-color: #ccc;
     }
-    .checkbox-group {
+    .checkbox-group, .input-group {
       margin: 10px 0;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    .input-group input, .input-group textarea, .input-group select {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      background-color: #f1f1f1;
+      margin-right: 5px;
+      border-radius: 5px 5px 0 0;
+    }
+    .tab.active {
+      background-color: #007bff;
+      color: white;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .audio-player {
+      width: 100%;
+      margin-top: 10px;
+    }
+    textarea {
+      min-height: 100px;
     }
   </style>
 </head>
 <body>
-  <div class="container">
+  <h1>AI Tasks Demo</h1>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="asr">Speech Recognition</div>
+    <div class="tab" data-tab="tts">Text to Speech</div>
+    <div class="tab" data-tab="translation">Translation</div>
+    <div class="tab" data-tab="text-generation">Text Generation</div>
+  </div>
+  
+  <div class="tab-content active" id="asr-content">
     <div class="card">
-      <h2>Audio Input</h2>
+      <h2>Audio to Text</h2>
       <input type="file" id="audioFile" accept="audio/*">
+      <div class="input-group">
+        <label for="asrModelInput">Model</label>
+        <input type="text" id="asrModelInput" value="onnx-community/whisper-large-v3-turbo_timestamped">
+        
+        <label for="asrDtypeInput">Dtype</label>
+        <input type="text" id="asrDtypeInput" value="q4">
+        
+        <label for="asrLanguageInput">Language</label>
+        <input type="text" id="asrLanguageInput" value="en">
+      </div>
       <div class="checkbox-group">
         <label>
           <input type="checkbox" id="timestampCheckbox">
@@ -57,99 +119,320 @@
           <input type="checkbox" id="streamCheckbox">
           Enable streaming
         </label>
-        <br>
+      </div>
+      <button id="asrBtn" disabled>Convert to Text</button>
+      <p class="status" id="asrStatus">Select an audio file to start.</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tts-content">
+    <div class="card">
+      <h2>Text to Speech</h2>
+      <div class="input-group">
+        <label for="ttsInput">Text</label>
+        <textarea id="ttsInput" placeholder="Enter text to convert to speech"></textarea>
+        
+        <label for="ttsModelInput">Model</label>
+        <select id="ttsModelInput">
+          <option value="Xenova/mms-tts-eng">English (Xenova/mms-tts-eng)</option>
+          <option value="Xenova/mms-tts-por">Portuguese (Xenova/mms-tts-por)</option>
+          <option value="Xenova/mms-tts-spa">Spanish (Xenova/mms-tts-spa)</option>
+          <option value="onnx-community/Kokoro-82M-ONNX">Kokoro TTS</option>
+        </select>
+        
+        <label for="ttsDtypeInput">Dtype</label>
+        <input type="text" id="ttsDtypeInput" value="q4">
+        
+        <label for="ttsVoiceInput">Voice (for Kokoro)</label>
+        <input type="text" id="ttsVoiceInput" value="">
+      </div>
+      <button id="ttsBtn">Generate Speech</button>
+      <p class="status" id="ttsStatus">Enter text to generate speech.</p>
+      <audio id="ttsAudio" controls class="audio-player" style="display: none;"></audio>
+    </div>
+  </div>
+
+  <div class="tab-content" id="translation-content">
+    <div class="card">
+      <h2>Translation</h2>
+      <div class="input-group">
+        <label for="translationInput">Text to Translate</label>
+        <textarea id="translationInput" placeholder="Enter text to translate"></textarea>
+        
+        <label for="translationModelInput">Model</label>
+        <input type="text" id="translationModelInput" value="Xenova/nllb-200-distilled-600M">
+        
+        <label for="translationDtypeInput">Dtype</label>
+        <input type="text" id="translationDtypeInput" value="q4">
+        
+        <label for="srcLangInput">Source Language</label>
+        <input type="text" id="srcLangInput" value="eng_Latn">
+        
+        <label for="tgtLangInput">Target Language</label>
+        <input type="text" id="tgtLangInput" value="por_Latn">
+      </div>
+      <button id="translationBtn">Translate</button>
+      <p class="status" id="translationStatus">Enter text to translate.</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="text-generation-content">
+    <div class="card">
+      <h2>Text Generation</h2>
+      <div class="input-group">
+        <label for="systemPromptInput">System Prompt</label>
+        <textarea id="systemPromptInput">You are a helpful assistant.</textarea>
+        
+        <label for="userPromptInput">User Prompt</label>
+        <textarea id="userPromptInput" placeholder="Enter your prompt"></textarea>
+        
+        <label for="textGenModelInput">Model</label>
+        <input type="text" id="textGenModelInput" value="Xenova/Llama-2-7b-gguf">
+        
+        <label for="textGenDtypeInput">Dtype</label>
+        <input type="text" id="textGenDtypeInput" value="q4">
+        
+        <label for="maxTokensInput">Max Tokens</label>
+        <input type="number" id="maxTokensInput" value="250">
+        
         <label>
-            Language
-            <input type="text" id="languageInput" placeholder="Language" value="en">
-        </label>
-        <br>
-        <label>
-            Model
-            <input type="text" id="modelInput" placeholder="Model" value="onnx-community/whisper-large-v3-turbo_timestamped">
-        </label>
-        <br>
-        <label>
-            Dtype
-          <input type="text" id="dtypeInput" placeholder="Dtype" value="q4">
+          <input type="checkbox" id="doSampleCheckbox">
+          Do Sample
         </label>
       </div>
-      <button id="convertBtn" disabled>Convert to Text</button>
-      <p class="status" id="status">Select an audio file to start.</p>
+      <button id="textGenBtn">Generate</button>
+      <p class="status" id="textGenStatus">Enter a prompt to generate text.</p>
     </div>
-    
-    <div class="card">
-      <h2>Result</h2>
-      <div class="result" id="result">The converted text will appear here.</div>
-    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Result</h2>
+    <div class="result" id="result">Results will appear here.</div>
   </div>
 
   <script type="module">
     import { HttpClient } from './http-client.js';
 
     const API_URL = 'http://localhost:9002';
-
-    // Elementos da interface
+    const httpClient = new HttpClient(API_URL);
+    
+    // Tab functionality
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Remove active class from all tabs and contents
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        
+        // Add active class to clicked tab and corresponding content
+        tab.classList.add('active');
+        const tabId = tab.getAttribute('data-tab');
+        document.getElementById(`${tabId}-content`).classList.add('active');
+      });
+    });
+    
+    // ASR (Speech Recognition)
     const audioFileInput = document.getElementById('audioFile');
-    const convertBtn = document.getElementById('convertBtn');
-    const statusElement = document.getElementById('status');
-    const resultElement = document.getElementById('result');
+    const asrBtn = document.getElementById('asrBtn');
+    const asrStatus = document.getElementById('asrStatus');
+    const asrModelInput = document.getElementById('asrModelInput');
+    const asrDtypeInput = document.getElementById('asrDtypeInput');
+    const asrLanguageInput = document.getElementById('asrLanguageInput');
     const timestampCheckbox = document.getElementById('timestampCheckbox');
     const streamCheckbox = document.getElementById('streamCheckbox');
-    const languageInput = document.getElementById('languageInput');
-    const modelInput = document.getElementById('modelInput');
-    const dtypeInput = document.getElementById('dtypeInput');
-
-    const httpClient = new HttpClient(API_URL);    
-    // Enable button when a file is selected
+    
     audioFileInput.addEventListener('change', function() {
-      convertBtn.disabled = !this.files.length;
+      asrBtn.disabled = !this.files.length;
       if (this.files.length) {
-        statusElement.textContent = `File selected: ${this.files[0].name}`;
+        asrStatus.textContent = `File selected: ${this.files[0].name}`;
       } else {
-        statusElement.textContent = 'Select an audio file to start.';
+        asrStatus.textContent = 'Select an audio file to start.';
       }
     });
     
-    // Processar o arquivo quando o botão for clicado
-    // Process the file when the button is clicked
-    convertBtn.addEventListener('click', async function() {
+    asrBtn.addEventListener('click', async function() {
       if (!audioFileInput.files.length) return;
       
       try {
         const file = audioFileInput.files[0];
-        convertBtn.disabled = true;
-        statusElement.textContent = 'Sending audio for processing...';
-        resultElement.textContent = 'Processing...';
+        asrBtn.disabled = true;
+        asrStatus.textContent = 'Processing audio...';
+        document.getElementById('result').textContent = 'Processing...';
 
         const response = await httpClient.processAudio(file, {
           timestamps: timestampCheckbox.checked,
           stream: streamCheckbox.checked,
-          language: languageInput.value,
-          model: modelInput.value,
-          dtype: dtypeInput.value
+          language: asrLanguageInput.value,
+          model: asrModelInput.value,
+          dtype: asrDtypeInput.value
         });
 
         if (streamCheckbox.checked) {
-          statusElement.textContent = 'Streaming results...';
-          resultElement.textContent = '';
+          asrStatus.textContent = 'Streaming results...';
+          document.getElementById('result').textContent = '';
 
           await httpClient.handleStreamResponse(response, (chunk) => {
-            statusElement.textContent = 'Streaming results...';
-            resultElement.textContent += chunk;
+            document.getElementById('result').textContent += chunk;
           });
 
-          statusElement.textContent = 'Conversion completed!';
-          convertBtn.disabled = false;
+          asrStatus.textContent = 'Conversion completed!';
         } else {
           const results = await response.json();
-          statusElement.textContent = 'Success...';
-          resultElement.textContent = JSON.stringify(results, null, 2);
-          convertBtn.disabled = false;
+          asrStatus.textContent = 'Success!';
+          document.getElementById('result').textContent = JSON.stringify(results, null, 2);
         }
       } catch (error) {
-        statusElement.textContent = `Error: ${error.message}`;
+        asrStatus.textContent = `Error: ${error.message}`;
         console.error('Error processing audio:', error);
-        convertBtn.disabled = false;
+      } finally {
+        asrBtn.disabled = false;
+      }
+    });
+    
+    // TTS (Text to Speech)
+    const ttsInput = document.getElementById('ttsInput');
+    const ttsBtn = document.getElementById('ttsBtn');
+    const ttsStatus = document.getElementById('ttsStatus');
+    const ttsModelInput = document.getElementById('ttsModelInput');
+    const ttsDtypeInput = document.getElementById('ttsDtypeInput');
+    const ttsVoiceInput = document.getElementById('ttsVoiceInput');
+    const ttsAudio = document.getElementById('ttsAudio');
+    
+    ttsBtn.addEventListener('click', async function() {
+      if (!ttsInput.value.trim()) {
+        ttsStatus.textContent = 'Please enter text to convert to speech.';
+        return;
+      }
+      
+      try {
+        ttsBtn.disabled = true;
+        ttsStatus.textContent = 'Generating speech...';
+        document.getElementById('result').textContent = 'Processing...';
+        ttsAudio.style.display = 'none';
+
+        const response = await httpClient.processTextToSpeech(ttsInput.value, {
+          model: ttsModelInput.value,
+          dtype: ttsDtypeInput.value,
+          voice: ttsVoiceInput.value
+        });
+
+        const result = await response.json();
+        ttsStatus.textContent = 'Success!';
+        
+        if (result.audio) {
+          // Display info in result area
+          document.getElementById('result').textContent = 'Audio generated successfully!';
+          
+          // Create audio player
+          const audioSrc = `data:audio/wav;base64,${result.audio}`;
+          ttsAudio.src = audioSrc;
+          ttsAudio.style.display = 'block';
+        } else if (result.error) {
+          document.getElementById('result').textContent = `Error: ${result.error}`;
+        }
+      } catch (error) {
+        ttsStatus.textContent = `Error: ${error.message}`;
+        document.getElementById('result').textContent = `Error: ${error.message}`;
+        console.error('Error generating speech:', error);
+      } finally {
+        ttsBtn.disabled = false;
+      }
+    });
+    
+    // Translation
+    const translationInput = document.getElementById('translationInput');
+    const translationBtn = document.getElementById('translationBtn');
+    const translationStatus = document.getElementById('translationStatus');
+    const translationModelInput = document.getElementById('translationModelInput');
+    const translationDtypeInput = document.getElementById('translationDtypeInput');
+    const srcLangInput = document.getElementById('srcLangInput');
+    const tgtLangInput = document.getElementById('tgtLangInput');
+    
+    translationBtn.addEventListener('click', async function() {
+      if (!translationInput.value.trim()) {
+        translationStatus.textContent = 'Please enter text to translate.';
+        return;
+      }
+      
+      try {
+        translationBtn.disabled = true;
+        translationStatus.textContent = 'Translating...';
+        document.getElementById('result').textContent = 'Processing...';
+
+        const response = await httpClient.processTranslation(translationInput.value, {
+          model: translationModelInput.value,
+          dtype: translationDtypeInput.value,
+          srcLang: srcLangInput.value,
+          tgtLang: tgtLangInput.value
+        });
+
+        const result = await response.json();
+        translationStatus.textContent = 'Success!';
+        
+        if (result.translatedText) {
+          document.getElementById('result').textContent = result.translatedText;
+        } else if (result.error) {
+          document.getElementById('result').textContent = `Error: ${result.error}`;
+        }
+      } catch (error) {
+        translationStatus.textContent = `Error: ${error.message}`;
+        document.getElementById('result').textContent = `Error: ${error.message}`;
+        console.error('Error translating text:', error);
+      } finally {
+        translationBtn.disabled = false;
+      }
+    });
+    
+    // Text Generation
+    const systemPromptInput = document.getElementById('systemPromptInput');
+    const userPromptInput = document.getElementById('userPromptInput');
+    const textGenBtn = document.getElementById('textGenBtn');
+    const textGenStatus = document.getElementById('textGenStatus');
+    const textGenModelInput = document.getElementById('textGenModelInput');
+    const textGenDtypeInput = document.getElementById('textGenDtypeInput');
+    const maxTokensInput = document.getElementById('maxTokensInput');
+    const doSampleCheckbox = document.getElementById('doSampleCheckbox');
+    
+    textGenBtn.addEventListener('click', async function() {
+      if (!userPromptInput.value.trim()) {
+        textGenStatus.textContent = 'Please enter a prompt.';
+        return;
+      }
+      
+      try {
+        textGenBtn.disabled = true;
+        textGenStatus.textContent = 'Generating text...';
+        document.getElementById('result').textContent = 'Processing...';
+
+        // Create message array
+        const messages = [
+          { role: "system", content: systemPromptInput.value },
+          { role: "user", content: userPromptInput.value }
+        ];
+
+        const response = await httpClient.processTextGeneration(messages, {
+          model: textGenModelInput.value,
+          dtype: textGenDtypeInput.value,
+          max_new_tokens: parseInt(maxTokensInput.value),
+          do_sample: doSampleCheckbox.checked
+        });
+
+        const result = await response.json();
+        textGenStatus.textContent = 'Success!';
+        
+        if (result.generatedText) {
+          document.getElementById('result').textContent = result.generatedText;
+        } else if (result.error) {
+          document.getElementById('result').textContent = `Error: ${result.error}`;
+        }
+      } catch (error) {
+        textGenStatus.textContent = `Error: ${error.message}`;
+        document.getElementById('result').textContent = `Error: ${error.message}`;
+        console.error('Error generating text:', error);
+      } finally {
+        textGenBtn.disabled = false;
       }
     });
 
@@ -160,8 +443,8 @@
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
         audioFileInput.files = dataTransfer.files;
-        convertBtn.disabled = false;
-        statusElement.textContent = 'File input.wav loaded automatically';
+        asrBtn.disabled = false;
+        asrStatus.textContent = 'File input.wav loaded automatically';
       }
     }
 
