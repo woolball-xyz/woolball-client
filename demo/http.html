@@ -84,6 +84,9 @@
     textarea {
       min-height: 100px;
     }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -134,17 +137,44 @@
         
         <label for="ttsModelInput">Model</label>
         <select id="ttsModelInput">
-          <option value="Xenova/mms-tts-eng">English (Xenova/mms-tts-eng)</option>
-          <option value="Xenova/mms-tts-por">Portuguese (Xenova/mms-tts-por)</option>
-          <option value="Xenova/mms-tts-spa">Spanish (Xenova/mms-tts-spa)</option>
-          <option value="onnx-community/Kokoro-82M-ONNX">Kokoro TTS</option>
+          <optgroup label="Language-specific Models">
+            <option value="Xenova/mms-tts-eng">English (eng)</option>
+            <option value="Xenova/mms-tts-spa">Spanish (spa)</option>
+            <option value="Xenova/mms-tts-por">Portuguese (por)</option>
+            <option value="Xenova/mms-tts-fra">French (fra)</option>
+            <option value="Xenova/mms-tts-deu">German (deu)</option>
+            <option value="Xenova/mms-tts-rus">Russian (rus)</option>
+            <option value="Xenova/mms-tts-ara">Arabic (ara)</option>
+            <option value="Xenova/mms-tts-hin">Hindi (hin)</option>
+            <option value="Xenova/mms-tts-kor">Korean (kor)</option>
+            <option value="Xenova/mms-tts-vie">Vietnamese (vie)</option>
+            <option value="Xenova/mms-tts-ron">Romanian (ron)</option>
+            <option value="Xenova/mms-tts-yor">Yoruba (yor)</option>
+          </optgroup>
+          <optgroup label="Other Engines">
+            <option value="onnx-community/Kokoro-82M-ONNX">Kokoro TTS</option>
+          </optgroup>
         </select>
         
         <label for="ttsDtypeInput">Dtype</label>
         <input type="text" id="ttsDtypeInput" value="q4">
         
-        <label for="ttsVoiceInput">Voice (for Kokoro)</label>
-        <input type="text" id="ttsVoiceInput" value="">
+        <div id="kokoroVoiceContainer" class="hidden">
+          <label for="ttsVoiceInput">Voice (Kokoro voices)</label>
+          <select id="ttsVoiceInput">
+            <option value="af">Default (American Female)</option>
+            <option value="af_bella">Bella (American Female)</option>
+            <option value="af_nicole">Nicole (American Female)</option>
+            <option value="af_sarah">Sarah (American Female)</option>
+            <option value="af_sky">Sky (American Female)</option>
+            <option value="am_adam">Adam (American Male)</option>
+            <option value="am_michael">Michael (American Male)</option>
+            <option value="bf_emma">Emma (British Female)</option>
+            <option value="bf_isabella">Isabella (British Female)</option>
+            <option value="bm_george">George (British Male)</option>
+            <option value="bm_lewis">Lewis (British Male)</option>
+          </select>
+        </div>
       </div>
       <button id="ttsBtn">Generate Speech</button>
       <p class="status" id="ttsStatus">Enter text to generate speech.</p>
@@ -299,6 +329,16 @@
     const ttsDtypeInput = document.getElementById('ttsDtypeInput');
     const ttsVoiceInput = document.getElementById('ttsVoiceInput');
     const ttsAudio = document.getElementById('ttsAudio');
+    const kokoroVoiceContainer = document.getElementById('kokoroVoiceContainer');
+    
+    // Show/hide voice options based on model selection
+    ttsModelInput.addEventListener('change', function() {
+      if (this.value === 'onnx-community/Kokoro-82M-ONNX') {
+        kokoroVoiceContainer.classList.remove('hidden');
+      } else {
+        kokoroVoiceContainer.classList.add('hidden');
+      }
+    });
     
     ttsBtn.addEventListener('click', async function() {
       if (!ttsInput.value.trim()) {
@@ -312,10 +352,13 @@
         document.getElementById('result').textContent = 'Processing...';
         ttsAudio.style.display = 'none';
 
+        // Only include voice parameter if Kokoro is selected
+        const isKokoro = ttsModelInput.value === 'onnx-community/Kokoro-82M-ONNX';
+        
         const response = await httpClient.processTextToSpeech(ttsInput.value, {
           model: ttsModelInput.value,
           dtype: ttsDtypeInput.value,
-          voice: ttsVoiceInput.value
+          voice: isKokoro ? ttsVoiceInput.value : undefined
         });
 
         const result = await response.json();
@@ -340,6 +383,11 @@
         ttsBtn.disabled = false;
       }
     });
+    
+    // Initialize visibility of voice options
+    if (ttsModelInput.value === 'onnx-community/Kokoro-82M-ONNX') {
+      kokoroVoiceContainer.classList.remove('hidden');
+    }
     
     // Translation
     const translationInput = document.getElementById('translationInput');
