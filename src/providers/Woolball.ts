@@ -34,7 +34,10 @@ class Woolball {
         this.activeWorkers = new Set();
         
         // Register available worker types
-        this.workerTypes.set('speech-recognition', workerCode);
+        this.workerTypes.set('automatic-speech-recognition', workerCode);
+        this.workerTypes.set('text-to-speech', workerCode);
+        this.workerTypes.set('translation', workerCode);
+        this.workerTypes.set('text-generation', workerCode);
         // Add more worker types here as needed
     }
 
@@ -107,6 +110,7 @@ class Woolball {
                 type: Key,
                 status: 'started'
             });
+            
              
             const response = await this.processEvent(Key, Value);
             
@@ -118,6 +122,9 @@ class Woolball {
                     status: 'error' as TaskStatus,
                 };
 
+                // Show detailed errors in main console
+                console.error(`Error processing ${Key}:`, response.error);
+                
                 this.emitEvent('error', errorData);
                 
                 this.sendWebSocketMessage({
@@ -168,7 +175,7 @@ class Woolball {
 
     private createWorker(type: string): Worker {
         if (typeof window === 'undefined') {
-            throw new Error('Ambiente não suportado para Web Workers');
+            throw new Error('Environment not supported for Web Workers');
         }
 
         const workerCode = this.workerTypes.get(type);
@@ -179,6 +186,12 @@ class Woolball {
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         const workerUrl = URL.createObjectURL(blob);
         const worker = new Worker(workerUrl);
+        
+        // Add error listener to capture worker errors
+        worker.addEventListener('error', (err) => {
+            console.error('Worker error:', err);
+        });
+        
         this.activeWorkers.add(worker);
         return worker;
     }
@@ -196,10 +209,17 @@ class Woolball {
                 worker.removeEventListener('message', messageHandler);
                 worker.removeEventListener('error', errorHandler);
                 this.terminateWorker(worker);
+                
+                // Log worker response for debugging
+                if (e.data.error) {
+                    console.error(`Worker ${type} error:`, e.data.error);
+                }
+                
                 resolve(e.data);
             };
 
             const errorHandler = (error: ErrorEvent) => {
+                console.error(`Worker ${type} execution error:`, error);
                 worker.removeEventListener('message', messageHandler);
                 worker.removeEventListener('error', errorHandler);
                 this.terminateWorker(worker);
@@ -208,6 +228,10 @@ class Woolball {
 
             worker.addEventListener('message', messageHandler);
             worker.addEventListener('error', errorHandler);
+            
+            // Debug log
+            console.log(`Sending data to worker ${type}:`, value);
+            
             worker.postMessage(value);
         });
     }

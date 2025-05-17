@@ -122,9 +122,10 @@ export class WebSocketManager {
 
   private getEmoji(type: string): string {
     const map: { [key: string]: string } = {
-      'speech-recognition': '🎙️',
+      'automatic-speech-recognition': '🎙️',
       'text-to-speech': '🔊',
       'translation': '🌐',
+      'text-generation': '💬',
     };
     return map[type] || '❓';
   }

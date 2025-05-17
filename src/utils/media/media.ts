@@ -21,3 +21,20 @@ export function processAudio(data: string): Float64Array {
   }
   return samples;
 }
+
+/**
+ * Converte um ArrayBuffer para string base64
+ * @param buffer ArrayBuffer para converter
+ * @returns String base64
+ */
+export function bufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192;
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
