@@ -499,15 +499,34 @@ function App() {
       console.log('✅ API response received, processing audio data');
       setTtsStatus('Processing audio data...');
       
-      const result = await response.json();
-      
-      if (result.audio) {
-        console.log('🎵 Audio data received, length:', result.audio.length);
-        // Here we would normally process the audio for playback
-        // but for this demo we'll just log it was successful
-        setTtsStatus("Success, open DevTools to see results");
-      } else if (result.error) {
-        throw new Error(result.error);
+      try {
+        const result = await response.json();
+        
+        // Verificar se a resposta é um array
+        if (Array.isArray(result)) {
+          const audioItems = result.filter(item => item.audio);
+          
+          if (audioItems.length > 0) {
+            // Calcular o tamanho total dos dados de áudio
+            const totalBytes = audioItems.reduce((total, item) => {
+              return total + (item.audio ? item.audio.length : 0);
+            }, 0);
+            console.log(`Received audio data: ${totalBytes} bytes (${(totalBytes / 1024).toFixed(2)} KB)`);
+            setTtsStatus("Success, open DevTools to see results");
+          } else {
+            throw new Error('Nenhum áudio encontrado na resposta da API');
+          }
+        } else if (result.audio) {
+          const audioBytes = result.audio.length;
+          console.log(`Received audio data: ${audioBytes} bytes (${(audioBytes / 1024).toFixed(2)} KB)`);
+          setTtsStatus("Success, open DevTools to see results");
+        } else if (result.error) {
+          throw new Error(result.error);
+        } else {
+          throw new Error('Resposta da API não contém dados de áudio');
+        }
+      } catch (parseError: unknown) {
+        throw new Error(`Erro ao processar resposta: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
       }
       
       // Clear the timer interval
@@ -516,7 +535,7 @@ function App() {
         ttsTimerRef.current = null;
       }
       
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       console.error('❌ Error in Text-to-Speech process:', errorMessage);
       setTtsStatus(`Error: ${errorMessage}`);
@@ -920,15 +939,29 @@ function App() {
             {isTtsProcessing ? (
               <div className="processing-indicator">
                 <span className="spinner"></span>
-                {ttsStatus}
+                {ttsStatus ? ttsStatus : 'Processando...'}
                 <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
               </div>
-            ) : ttsStatus?.includes("Success") ? (
-              <div className="success-message">
-                <span className="check-icon">✓</span>
-                {ttsStatus}
-                <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
-              </div>
+            ) : ttsStatus ? (
+              ttsStatus.includes("Success") ? (
+                <div className="success-message">
+                  <span className="check-icon">✓</span>
+                  {ttsStatus}
+                  <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
+                </div>
+              ) : ttsStatus.includes("Error") ? (
+                <div className="error-message">
+                  <span className="error-icon">❌</span>
+                  {ttsStatus}
+                  <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
+                </div>
+              ) : (
+                <div className="info-message">
+                  <span className="info-icon">ℹ️</span>
+                  {ttsStatus}
+                  <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
+                </div>
+              )
             ) : !running ? (
               <div className="waiting-message">
                 <span className="info-icon">ℹ️</span>

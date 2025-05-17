@@ -52,11 +52,16 @@ export class HttpClient {
       formData.append('voice', options.voice);
     }
     
+    if (options.stream !== undefined) {
+      formData.append('stream', options.stream ? 'true' : 'false');
+    }
+    
     console.log('Sending TTS request:', {
       text,
       model: options.model,
       dtype: options.dtype,
-      voice: options.voice
+      voice: options.voice,
+      stream: options.stream
     });
     
     const response = await fetch(`${this.apiUrl}/api/v1/text-to-speech`, {

@@ -254,6 +254,13 @@
             <option value="bm_fable">Fable (British Male)</option>
           </select>
         </div>
+        
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="ttsStreamCheckbox">
+            Enable streaming
+          </label>
+        </div>
       </div>
       <button id="ttsBtn">Generate Speech</button>
       <p class="status" id="ttsStatus">Enter text to generate speech.</p>
@@ -409,6 +416,7 @@
     const ttsVoiceInput = document.getElementById('ttsVoiceInput');
     const ttsAudio = document.getElementById('ttsAudio');
     const kokoroVoiceContainer = document.getElementById('kokoroVoiceContainer');
+    const ttsStreamCheckbox = document.getElementById('ttsStreamCheckbox');
     
     // Show/hide voice options based on model selection
     ttsModelInput.addEventListener('change', function() {
@@ -437,74 +445,203 @@
         const response = await httpClient.processTextToSpeech(ttsInput.value, {
           model: ttsModelInput.value,
           dtype: ttsDtypeInput.value,
-          voice: isKokoro ? ttsVoiceInput.value : undefined
+          voice: isKokoro ? ttsVoiceInput.value : undefined,
+          stream: ttsStreamCheckbox.checked
         });
 
-        const result = await response.json();
-        ttsStatus.textContent = 'Success!';
-        
-        if (result.audio) {
-          // Display info in result area
-          document.getElementById('result').textContent = 'Audio generated successfully!';
+        if (ttsStreamCheckbox.checked) {
+          // Handle streaming response
+          ttsStatus.textContent = 'Streaming audio chunks...';
           
-          try {
-            console.log('Recebido áudio base64, processando...');
-            // Usar nosso novo método para processar o áudio
-            const audioData = httpClient.createAudioFromBase64(result.audio);
+          // Clear previous results
+          const resultDiv = document.getElementById('result');
+          resultDiv.textContent = '';
+          
+          // Create container for audio chunks
+          const audioContainer = document.createElement('div');
+          audioContainer.className = 'audio-container';
+          resultDiv.appendChild(audioContainer);
+          
+          // Create info panel
+          const infoPanel = document.createElement('div');
+          infoPanel.className = 'info-panel';
+          infoPanel.innerHTML = '<h3>Audio Chunks</h3><p>Receiving streaming audio chunks...</p>';
+          audioContainer.appendChild(infoPanel);
+          
+          let chunkCount = 0;
+          let accumulatedChunks = "";
+          
+          await httpClient.handleStreamResponse(response, (chunk) => {
+            // Accumulate chunks until we have complete JSON
+            accumulatedChunks += chunk;
             
-            // Definir a fonte do elemento de áudio
-            ttsAudio.src = audioData.url;
-            ttsAudio.style.display = 'block';
-            
-            // Adicionar detalhes ao resultado para depuração
-            const audioInfoDiv = document.createElement('div');
-            audioInfoDiv.classList.add('audio-info');
-            audioInfoDiv.innerHTML = `
-              <h3>Informações do áudio</h3>
-              <ul>
-                <li>Tipo MIME: ${audioData.mimeType}</li>
-                <li>Tamanho do blob: ${(audioData.blob.size / 1024).toFixed(2)} KB</li>
-                <li>Duração: <span id="audioDuration">carregando...</span></li>
-              </ul>
-              <details>
-                <summary>Base64 Preview (primeiros 50 caracteres)</summary>
-                <pre>${result.audio.substring(0, 50)}...</pre>
-              </details>
-            `;
-            
-            // Substituir o texto antigo
-            const resultDiv = document.getElementById('result');
-            resultDiv.textContent = '';
-            resultDiv.appendChild(audioInfoDiv);
-            
-            // Mostrar a duração do áudio quando carregar
-            ttsAudio.onloadedmetadata = function() {
-              document.getElementById('audioDuration').textContent = `${ttsAudio.duration.toFixed(2)} segundos`;
-            };
-            
-            // Manipular erro de carregamento
-            ttsAudio.onerror = function() {
-              console.error('Erro ao carregar áudio:', ttsAudio.error);
-              document.getElementById('result').textContent = `Erro ao carregar áudio: ${ttsAudio.error?.message || 'Erro desconhecido'}`;
-            };
-          } catch (audioError) {
-            console.error('Erro ao processar o áudio base64:', audioError);
-            document.getElementById('result').textContent = `Erro ao processar áudio: ${audioError.message}`;
-            
-            // Exibir os primeiros caracteres do base64 para ajudar na depuração
-            if (result.audio) {
-              const errorDetails = document.createElement('details');
-              errorDetails.innerHTML = `
-                <summary>Detalhes do erro</summary>
-                <p>Erro: ${audioError.message}</p>
-                <p>Base64 recebido (primeiros 50 caracteres):</p>
-                <pre>${result.audio.substring(0, 50)}...</pre>
-              `;
-              document.getElementById('result').appendChild(errorDetails);
+            try {
+              // Try to validate if we have complete JSON object(s)
+              // We might receive multiple complete objects in one chunk
+              
+              // Process all complete JSON objects in the accumulated string
+              while (accumulatedChunks.length > 0) {
+                // Look for a complete JSON array object
+                let startPos = accumulatedChunks.indexOf('[');
+                if (startPos === -1) break;
+                
+                // Try to find the matching closing bracket
+                let depth = 0;
+                let endPos = -1;
+                
+                for (let i = startPos; i < accumulatedChunks.length; i++) {
+                  if (accumulatedChunks[i] === '[') depth++;
+                  else if (accumulatedChunks[i] === ']') {
+                    depth--;
+                    if (depth === 0) {
+                      endPos = i;
+                      break;
+                    }
+                  }
+                }
+                
+                // If we didn't find a complete JSON object, wait for more chunks
+                if (endPos === -1) break;
+                
+                // Extract the complete JSON string
+                const jsonStr = accumulatedChunks.substring(startPos, endPos + 1);
+                // Remove the processed part from the accumulated string
+                accumulatedChunks = accumulatedChunks.substring(endPos + 1);
+                
+                // Parse the complete JSON
+                const items = JSON.parse(jsonStr);
+                chunkCount++;
+                
+                // Process each audio item in the array
+                if (Array.isArray(items)) {
+                  items.forEach(item => {
+                    if (item.audio) {
+                      // Process this audio chunk
+                      const audioData = httpClient.createAudioFromBase64(item.audio);
+                      
+                      // Create audio element for this chunk
+                      const audioElement = document.createElement('audio');
+                      audioElement.src = audioData.url;
+                      audioElement.controls = true;
+                      audioElement.className = 'audio-player';
+                      
+                      // Create info for this chunk
+                      const chunkInfo = document.createElement('div');
+                      chunkInfo.className = 'chunk-info';
+                      chunkInfo.innerHTML = `
+                        <h4>Chunk ${chunkCount}</h4>
+                        <p>Size: ${(audioData.blob.size / 1024).toFixed(2)} KB</p>
+                      `;
+                      
+                      // Add to container
+                      const chunkContainer = document.createElement('div');
+                      chunkContainer.className = 'chunk-container';
+                      chunkContainer.appendChild(chunkInfo);
+                      chunkContainer.appendChild(audioElement);
+                      audioContainer.appendChild(chunkContainer);
+                      
+                      // Update info panel
+                      infoPanel.innerHTML = `<h3>Audio Chunks</h3><p>Received ${chunkCount} chunks so far...</p>`;
+                    }
+                  });
+                }
+              }
+            } catch (error) {
+              // If we can't parse yet, just wait for more chunks
+              console.log('Waiting for more chunks to complete JSON:', error.message);
             }
+          });
+          
+          ttsStatus.textContent = `Streaming completed! Received ${chunkCount} chunks.`;
+        } else {
+          // Handle regular response
+          const result = await response.json();
+          ttsStatus.textContent = 'Success!';
+          
+          // Clear previous audio elements
+          const resultDiv = document.getElementById('result');
+          resultDiv.textContent = '';
+          
+          // Check if result is an array (new format) or single object (old format)
+          const audioItems = Array.isArray(result) ? result : [result];
+          
+          if (audioItems.length > 0) {
+            console.log(`Received ${audioItems.length} audio item(s)`);
+            
+            // Create container for multiple audio players if needed
+            const audioContainer = document.createElement('div');
+            audioContainer.className = 'audio-container';
+            
+            // Process each audio item
+            for (let i = 0; i < audioItems.length; i++) {
+              const audioItem = audioItems[i];
+              
+              if (audioItem.audio) {
+                try {
+                  console.log(`Processing audio item ${i+1}/${audioItems.length}`);
+                  
+                  // Process base64 audio
+                  const audioData = httpClient.createAudioFromBase64(audioItem.audio);
+                  
+                  // Create audio element
+                  if (i === 0) {
+                    // Use the existing audio element for the first item
+                    ttsAudio.src = audioData.url;
+                    ttsAudio.style.display = 'block';
+                  } else {
+                    // Create additional audio elements for any extra items
+                    const additionalAudio = document.createElement('audio');
+                    additionalAudio.src = audioData.url;
+                    additionalAudio.controls = true;
+                    additionalAudio.className = 'audio-player';
+                    audioContainer.appendChild(additionalAudio);
+                  }
+                  
+                  // Add audio info for this item
+                  const audioInfoDiv = document.createElement('div');
+                  audioInfoDiv.classList.add('audio-info');
+                  audioInfoDiv.innerHTML = `
+                    <h3>Audio Item ${i+1}</h3>
+                    <ul>
+                      <li>Tipo MIME: ${audioData.mimeType}</li>
+                      <li>Tamanho do blob: ${(audioData.blob.size / 1024).toFixed(2)} KB</li>
+                      <li>Duração: <span id="audioDuration-${i}">carregando...</span></li>
+                    </ul>
+                    <details>
+                      <summary>Base64 Preview (primeiros 50 caracteres)</summary>
+                      <pre>${audioItem.audio.substring(0, 50)}...</pre>
+                    </details>
+                  `;
+                  audioContainer.appendChild(audioInfoDiv);
+                  
+                  // Update the duration when loaded
+                  if (i === 0) {
+                    ttsAudio.onloadedmetadata = function() {
+                      document.getElementById(`audioDuration-${i}`).textContent = `${ttsAudio.duration.toFixed(2)} segundos`;
+                    };
+                  }
+                } catch (audioError) {
+                  console.error(`Error processing audio item ${i+1}:`, audioError);
+                  const errorInfo = document.createElement('div');
+                  errorInfo.className = 'error-info';
+                  errorInfo.innerHTML = `
+                    <h3>Error in Audio Item ${i+1}</h3>
+                    <p>Error: ${audioError.message}</p>
+                  `;
+                  audioContainer.appendChild(errorInfo);
+                }
+              } else {
+                console.warn(`Audio item ${i+1} has no audio property:`, audioItem);
+              }
+            }
+            
+            // Add the audio container to the result div
+            resultDiv.appendChild(audioContainer);
+          } else if (result.error) {
+            document.getElementById('result').textContent = `Error: ${result.error}`;
+          } else {
+            document.getElementById('result').textContent = 'No audio data received';
           }
-        } else if (result.error) {
-          document.getElementById('result').textContent = `Error: ${result.error}`;
         }
       } catch (error) {
         ttsStatus.textContent = `Error: ${error.message}`;
