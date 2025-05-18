@@ -1,54 +1,60 @@
-import { processAudio } from '../../utils/media';
+import { taskProcessors, TaskType } from '../../utils/tasks';
 
 export const process = async ({ data }: MessageEvent) => {
-    const {
-        input,
-        task,
-        dtype,
-        model,
-        ...rest
-    } = data;
+    const { task, ...taskData } = data;
 
     try {
-        let pipeInput;
 
-        if(task === 'automatic-speech-recognition'){
-            pipeInput = processAudio(input);
-        }
 
-        if(pipeInput === undefined){
-            throw new Error('invalid task');
-        }
-
-        for (const key in rest) {
-            if (rest[key] === 'true') {
-                rest[key] = true;
+        for (const key in taskData) {
+            if (taskData[key] === 'true') {
+                taskData[key] = true;
             }
-            if (rest[key] === 'false') {
-                rest[key] = false;
+            if (taskData[key] === 'false') {
+                taskData[key] = false;
             }
         }
-
-        const { pipeline } = await import('@huggingface/transformers');
-        const pipe = await pipeline(task, model, {
-            dtype: dtype,
-            device: 'webgpu',
-        });
-
-        const result = await pipe(pipeInput, rest);
         
-        // Dispose the pipeline after use
-        await pipe.dispose();
+        const processor = taskProcessors[task as TaskType];
+        if (!processor) {
+            console.error(`[Worker] Error: Unsupported task: ${task}`);
+            throw new Error(`Unsupported task: ${task}`);
+        }
         
-        self.postMessage(result);
+        console.log(`[Worker] Processing task ${task} with processor`);
+        
+        try {
+            const result = await processor(taskData);
+            console.log(`[Worker] Task ${task} completed successfully`);
+            self.postMessage(result);
+        } catch (processorError) {
+            console.error(`[Worker] Error in ${task} processor:`, processorError);
+            
+            // Report error without specific filtering
+            const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
+            self.postMessage({ error: errorMessage });
+            
+            throw processorError; // Re-throw for logging
+        }
 
     } catch (e) {
-        console.error('Erro no worker:', e);
-        self.postMessage({ error: e instanceof Error ? e.message : String(e) });
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        const errorStack = e instanceof Error ? e.stack : 'No stack trace available';
+        
+        console.error('[Worker] Error:', errorMessage);
+        console.error('[Worker] Stack:', errorStack);
+        
+        // We've already sent the message in the inner try/catch if it was a processor error
+        if (!(e instanceof Error && e.message.includes('processor'))) {
+            self.postMessage({ error: errorMessage });
+        }
     }
 };
 
 self.onmessage = (event: MessageEvent) => {
-    process(event);
+    console.log('[Worker] Message received');
+    process(event).catch(err => {
+        console.error('[Worker] Unhandled error:', err);
+    });
 };
   

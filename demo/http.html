@@ -3,7 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HTTP Demo - Speech to Text</title>
+  <title>AI Tasks Demo</title>
+  <script>
+    // Script global para capturar erros, inclusive de workers e operações assíncronas
+    window.addEventListener('error', function(event) {
+      console.error('[GLOBAL ERROR]', event.error || event.message);
+      // Opcional: mostrar em algum elemento visual
+      const errorBanner = document.createElement('div');
+      errorBanner.style.position = 'fixed';
+      errorBanner.style.top = '0';
+      errorBanner.style.left = '0';
+      errorBanner.style.right = '0';
+      errorBanner.style.backgroundColor = '#ff4d4d';
+      errorBanner.style.color = 'white';
+      errorBanner.style.padding = '8px';
+      errorBanner.style.zIndex = '9999';
+      errorBanner.style.textAlign = 'center';
+      errorBanner.innerText = event.error ? event.error.message : event.message;
+      document.body.appendChild(errorBanner);
+      setTimeout(() => errorBanner.remove(), 5000);
+    });
+
+    // Redireciona logs do console para também exibir visualmente
+    const originalConsoleError = console.error;
+    console.error = function(...args) {
+      originalConsoleError.apply(console, args);
+      
+      // Criar ou atualizar área de logs
+      let logArea = document.getElementById('console-log-area');
+      if (!logArea) {
+        logArea = document.createElement('div');
+        logArea.id = 'console-log-area';
+        logArea.style.position = 'fixed';
+        logArea.style.bottom = '0';
+        logArea.style.right = '0';
+        logArea.style.width = '400px';
+        logArea.style.maxHeight = '200px';
+        logArea.style.backgroundColor = 'rgba(0,0,0,0.8)';
+        logArea.style.color = 'white';
+        logArea.style.padding = '10px';
+        logArea.style.fontFamily = 'monospace';
+        logArea.style.fontSize = '12px';
+        logArea.style.overflowY = 'auto';
+        logArea.style.zIndex = '9998';
+        document.body.appendChild(logArea);
+      }
+      
+      const logEntry = document.createElement('div');
+      logEntry.style.borderBottom = '1px solid #333';
+      logEntry.style.padding = '3px 0';
+      logEntry.style.color = '#ff6666';
+      logEntry.textContent = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      ).join(' ');
+      
+      logArea.appendChild(logEntry);
+      logArea.scrollTop = logArea.scrollHeight;
+      
+      // Limita o número de entradas
+      while (logArea.childNodes.length > 20) {
+        logArea.removeChild(logArea.firstChild);
+      }
+    };
+  </script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -22,6 +84,8 @@
       background-color: #f5f5f5;
       padding: 10px;
       border-radius: 4px;
+      max-height: 300px;
+      overflow-y: auto;
     }
     .status {
       color: #666;
@@ -34,20 +98,83 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      margin-top: 10px;
     }
     button:disabled {
       background-color: #ccc;
     }
-    .checkbox-group {
+    .checkbox-group, .input-group {
       margin: 10px 0;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    .input-group input, .input-group textarea, .input-group select {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      background-color: #f1f1f1;
+      margin-right: 5px;
+      border-radius: 5px 5px 0 0;
+    }
+    .tab.active {
+      background-color: #007bff;
+      color: white;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .audio-player {
+      width: 100%;
+      margin-top: 10px;
+    }
+    textarea {
+      min-height: 100px;
+    }
+    .hidden {
+      display: none;
     }
   </style>
 </head>
 <body>
-  <div class="container">
+  <h1>AI Tasks Demo</h1>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="asr">Speech Recognition</div>
+    <div class="tab" data-tab="tts">Text to Speech</div>
+    <div class="tab" data-tab="translation">Translation</div>
+    <div class="tab" data-tab="text-generation">Text Generation</div>
+  </div>
+  
+  <div class="tab-content active" id="asr-content">
     <div class="card">
-      <h2>Audio Input</h2>
+      <h2>Audio to Text</h2>
       <input type="file" id="audioFile" accept="audio/*">
+      <div class="input-group">
+        <label for="asrModelInput">Model</label>
+        <input type="text" id="asrModelInput" value="onnx-community/whisper-large-v3-turbo_timestamped">
+        
+        <label for="asrDtypeInput">Dtype</label>
+        <input type="text" id="asrDtypeInput" value="q4">
+        
+        <label for="asrLanguageInput">Language</label>
+        <input type="text" id="asrLanguageInput" value="en">
+      </div>
       <div class="checkbox-group">
         <label>
           <input type="checkbox" id="timestampCheckbox">
@@ -57,99 +184,571 @@
           <input type="checkbox" id="streamCheckbox">
           Enable streaming
         </label>
-        <br>
+      </div>
+      <button id="asrBtn" disabled>Convert to Text</button>
+      <p class="status" id="asrStatus">Select an audio file to start.</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tts-content">
+    <div class="card">
+      <h2>Text to Speech</h2>
+      <div class="input-group">
+        <label for="ttsInput">Text</label>
+        <textarea id="ttsInput" placeholder="Enter text to convert to speech"></textarea>
+        
+        <label for="ttsModelInput">Model</label>
+        <select id="ttsModelInput">
+          <optgroup label="Language-specific Models">
+            <option value="Xenova/mms-tts-eng">English (eng)</option>
+            <option value="Xenova/mms-tts-spa">Spanish (spa)</option>
+            <option value="Xenova/mms-tts-por">Portuguese (por)</option>
+            <option value="Xenova/mms-tts-fra">French (fra)</option>
+            <option value="Xenova/mms-tts-deu">German (deu)</option>
+            <option value="Xenova/mms-tts-rus">Russian (rus)</option>
+            <option value="Xenova/mms-tts-ara">Arabic (ara)</option>
+            <option value="Xenova/mms-tts-hin">Hindi (hin)</option>
+            <option value="Xenova/mms-tts-kor">Korean (kor)</option>
+            <option value="Xenova/mms-tts-vie">Vietnamese (vie)</option>
+            <option value="Xenova/mms-tts-ron">Romanian (ron)</option>
+            <option value="Xenova/mms-tts-yor">Yoruba (yor)</option>
+          </optgroup>
+          <optgroup label="Other Engines">
+            <option value="onnx-community/Kokoro-82M-ONNX">Kokoro TTS</option>
+          </optgroup>
+        </select>
+        
+        <label for="ttsDtypeInput">Dtype</label>
+        <input type="text" id="ttsDtypeInput" value="q8">
+        
+        <div id="kokoroVoiceContainer" class="hidden">
+          <label for="ttsVoiceInput">Voice (Kokoro voices)</label>
+          <select id="ttsVoiceInput">
+            <option value="af_heart">Heart (American Female)</option>
+            <option value="af_alloy">Alloy (American Female)</option>
+            <option value="af_aoede">Aoede (American Female)</option>
+            <option value="af_bella">Bella (American Female)</option>
+            <option value="af_jessica">Jessica (American Female)</option>
+            <option value="af_kore">Kore (American Female)</option>
+            <option value="af_nicole">Nicole (American Female)</option>
+            <option value="af_nova">Nova (American Female)</option>
+            <option value="af_river">River (American Female)</option>
+            <option value="af_sarah">Sarah (American Female)</option>
+            <option value="af_sky">Sky (American Female)</option>
+            <option value="am_adam">Adam (American Male)</option>
+            <option value="am_echo">Echo (American Male)</option>
+            <option value="am_eric">Eric (American Male)</option>
+            <option value="am_fenrir">Fenrir (American Male)</option>
+            <option value="am_liam">Liam (American Male)</option>
+            <option value="am_michael">Michael (American Male)</option>
+            <option value="am_onyx">Onyx (American Male)</option>
+            <option value="am_puck">Puck (American Male)</option>
+            <option value="am_santa">Santa (American Male)</option>
+            <option value="bf_emma">Emma (British Female)</option>
+            <option value="bf_isabella">Isabella (British Female)</option>
+            <option value="bf_alice">Alice (British Female)</option>
+            <option value="bf_lily">Lily (British Female)</option>
+            <option value="bm_george">George (British Male)</option>
+            <option value="bm_lewis">Lewis (British Male)</option>
+            <option value="bm_daniel">Daniel (British Male)</option>
+            <option value="bm_fable">Fable (British Male)</option>
+          </select>
+        </div>
+        
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="ttsStreamCheckbox">
+            Enable streaming
+          </label>
+        </div>
+      </div>
+      <button id="ttsBtn">Generate Speech</button>
+      <p class="status" id="ttsStatus">Enter text to generate speech.</p>
+      <audio id="ttsAudio" controls class="audio-player" style="display: none;"></audio>
+    </div>
+  </div>
+
+  <div class="tab-content" id="translation-content">
+    <div class="card">
+      <h2>Translation</h2>
+      <div class="input-group">
+        <label for="translationInput">Text to Translate</label>
+        <textarea id="translationInput" placeholder="Enter text to translate"></textarea>
+        
+        <label for="translationModelInput">Model</label>
+        <input type="text" id="translationModelInput" value="Xenova/nllb-200-distilled-600M">
+        
+        <label for="translationDtypeInput">Dtype</label>
+        <input type="text" id="translationDtypeInput" value="q8">
+        
+        <label for="source_lang">Source Language</label>
+        <input type="text" id="source_lang" value="eng_Latn">
+        
+        <label for="tgtLangInput">Target Language</label>
+        <input type="text" id="tgtLangInput" value="por_Latn">
+      </div>
+      <button id="translationBtn">Translate</button>
+      <p class="status" id="translationStatus">Enter text to translate.</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="text-generation-content">
+    <div class="card">
+      <h2>Text Generation</h2>
+      <div class="input-group">
+        <label for="systemPromptInput">System Prompt</label>
+        <textarea id="systemPromptInput">You are a helpful assistant.</textarea>
+        
+        <label for="userPromptInput">User Prompt</label>
+        <textarea id="userPromptInput" placeholder="Enter your prompt">What is the capital of the Brazil?</textarea>
+        
+        <label for="textGenModelInput">Model</label>
+        <input type="text" id="textGenModelInput" value="HuggingFaceTB/SmolLM2-135M-Instruct">
+        
+        <label for="textGenDtypeInput">Dtype</label>
+        <input type="text" id="textGenDtypeInput" value="fp16">
+        
+        <label for="maxTokensInput">Max Tokens</label>
+        <input type="number" id="maxTokensInput" value="250">
+        
         <label>
-            Language
-            <input type="text" id="languageInput" placeholder="Language" value="en">
-        </label>
-        <br>
-        <label>
-            Model
-            <input type="text" id="modelInput" placeholder="Model" value="onnx-community/whisper-large-v3-turbo_timestamped">
-        </label>
-        <br>
-        <label>
-            Dtype
-          <input type="text" id="dtypeInput" placeholder="Dtype" value="q4">
+          <input type="checkbox" id="doSampleCheckbox">
+          Do Sample
         </label>
       </div>
-      <button id="convertBtn" disabled>Convert to Text</button>
-      <p class="status" id="status">Select an audio file to start.</p>
+      <button id="textGenBtn">Generate</button>
+      <p class="status" id="textGenStatus">Enter a prompt to generate text.</p>
     </div>
-    
-    <div class="card">
-      <h2>Result</h2>
-      <div class="result" id="result">The converted text will appear here.</div>
-    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Result</h2>
+    <div class="result" id="result">Results will appear here.</div>
   </div>
 
   <script type="module">
     import { HttpClient } from './http-client.js';
 
     const API_URL = 'http://localhost:9002';
-
-    // Elementos da interface
+    const httpClient = new HttpClient(API_URL);
+    
+    // Tab functionality
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Remove active class from all tabs and contents
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        
+        // Add active class to clicked tab and corresponding content
+        tab.classList.add('active');
+        const tabId = tab.getAttribute('data-tab');
+        document.getElementById(`${tabId}-content`).classList.add('active');
+      });
+    });
+    
+    // ASR (Speech Recognition)
     const audioFileInput = document.getElementById('audioFile');
-    const convertBtn = document.getElementById('convertBtn');
-    const statusElement = document.getElementById('status');
-    const resultElement = document.getElementById('result');
+    const asrBtn = document.getElementById('asrBtn');
+    const asrStatus = document.getElementById('asrStatus');
+    const asrModelInput = document.getElementById('asrModelInput');
+    const asrDtypeInput = document.getElementById('asrDtypeInput');
+    const asrLanguageInput = document.getElementById('asrLanguageInput');
     const timestampCheckbox = document.getElementById('timestampCheckbox');
     const streamCheckbox = document.getElementById('streamCheckbox');
-    const languageInput = document.getElementById('languageInput');
-    const modelInput = document.getElementById('modelInput');
-    const dtypeInput = document.getElementById('dtypeInput');
-
-    const httpClient = new HttpClient(API_URL);    
-    // Enable button when a file is selected
+    
     audioFileInput.addEventListener('change', function() {
-      convertBtn.disabled = !this.files.length;
+      asrBtn.disabled = !this.files.length;
       if (this.files.length) {
-        statusElement.textContent = `File selected: ${this.files[0].name}`;
+        asrStatus.textContent = `File selected: ${this.files[0].name}`;
       } else {
-        statusElement.textContent = 'Select an audio file to start.';
+        asrStatus.textContent = 'Select an audio file to start.';
       }
     });
     
-    // Processar o arquivo quando o botão for clicado
-    // Process the file when the button is clicked
-    convertBtn.addEventListener('click', async function() {
+    asrBtn.addEventListener('click', async function() {
       if (!audioFileInput.files.length) return;
       
       try {
         const file = audioFileInput.files[0];
-        convertBtn.disabled = true;
-        statusElement.textContent = 'Sending audio for processing...';
-        resultElement.textContent = 'Processing...';
+        asrBtn.disabled = true;
+        asrStatus.textContent = 'Processing audio...';
+        document.getElementById('result').textContent = 'Processing...';
 
         const response = await httpClient.processAudio(file, {
           timestamps: timestampCheckbox.checked,
           stream: streamCheckbox.checked,
-          language: languageInput.value,
-          model: modelInput.value,
-          dtype: dtypeInput.value
+          language: asrLanguageInput.value,
+          model: asrModelInput.value,
+          dtype: asrDtypeInput.value
         });
 
         if (streamCheckbox.checked) {
-          statusElement.textContent = 'Streaming results...';
-          resultElement.textContent = '';
+          asrStatus.textContent = 'Streaming results...';
+          document.getElementById('result').textContent = '';
 
           await httpClient.handleStreamResponse(response, (chunk) => {
-            statusElement.textContent = 'Streaming results...';
-            resultElement.textContent += chunk;
+            document.getElementById('result').textContent += chunk;
           });
 
-          statusElement.textContent = 'Conversion completed!';
-          convertBtn.disabled = false;
+          asrStatus.textContent = 'Conversion completed!';
         } else {
           const results = await response.json();
-          statusElement.textContent = 'Success...';
-          resultElement.textContent = JSON.stringify(results, null, 2);
-          convertBtn.disabled = false;
+          asrStatus.textContent = 'Success!';
+          document.getElementById('result').textContent = JSON.stringify(results, null, 2);
         }
       } catch (error) {
-        statusElement.textContent = `Error: ${error.message}`;
+        asrStatus.textContent = `Error: ${error.message}`;
         console.error('Error processing audio:', error);
-        convertBtn.disabled = false;
+      } finally {
+        asrBtn.disabled = false;
+      }
+    });
+    
+    // TTS (Text to Speech)
+    const ttsInput = document.getElementById('ttsInput');
+    const ttsBtn = document.getElementById('ttsBtn');
+    const ttsStatus = document.getElementById('ttsStatus');
+    const ttsModelInput = document.getElementById('ttsModelInput');
+    const ttsDtypeInput = document.getElementById('ttsDtypeInput');
+    const ttsVoiceInput = document.getElementById('ttsVoiceInput');
+    const ttsAudio = document.getElementById('ttsAudio');
+    const kokoroVoiceContainer = document.getElementById('kokoroVoiceContainer');
+    const ttsStreamCheckbox = document.getElementById('ttsStreamCheckbox');
+    
+    // Show/hide voice options based on model selection
+    ttsModelInput.addEventListener('change', function() {
+      if (this.value === 'onnx-community/Kokoro-82M-ONNX') {
+        kokoroVoiceContainer.classList.remove('hidden');
+      } else {
+        kokoroVoiceContainer.classList.add('hidden');
+      }
+    });
+    
+    ttsBtn.addEventListener('click', async function() {
+      if (!ttsInput.value.trim()) {
+        ttsStatus.textContent = 'Please enter text to convert to speech.';
+        return;
+      }
+      
+      try {
+        ttsBtn.disabled = true;
+        ttsStatus.textContent = 'Generating speech...';
+        document.getElementById('result').textContent = 'Processing...';
+        ttsAudio.style.display = 'none';
+
+        // Only include voice parameter if Kokoro is selected
+        const isKokoro = ttsModelInput.value === 'onnx-community/Kokoro-82M-ONNX';
+        
+        const response = await httpClient.processTextToSpeech(ttsInput.value, {
+          model: ttsModelInput.value,
+          dtype: ttsDtypeInput.value,
+          voice: isKokoro ? ttsVoiceInput.value : undefined,
+          stream: ttsStreamCheckbox.checked
+        });
+
+        if (ttsStreamCheckbox.checked) {
+          // Handle streaming response
+          ttsStatus.textContent = 'Streaming audio chunks...';
+          
+          // Clear previous results
+          const resultDiv = document.getElementById('result');
+          resultDiv.textContent = '';
+          
+          // Create container for audio chunks
+          const audioContainer = document.createElement('div');
+          audioContainer.className = 'audio-container';
+          resultDiv.appendChild(audioContainer);
+          
+          // Create info panel
+          const infoPanel = document.createElement('div');
+          infoPanel.className = 'info-panel';
+          infoPanel.innerHTML = '<h3>Audio Chunks</h3><p>Receiving streaming audio chunks...</p>';
+          audioContainer.appendChild(infoPanel);
+          
+          let chunkCount = 0;
+          let accumulatedChunks = "";
+          
+          await httpClient.handleStreamResponse(response, (chunk) => {
+            // Accumulate chunks until we have complete JSON
+            accumulatedChunks += chunk;
+            
+            try {
+              // Try to validate if we have complete JSON object(s)
+              // We might receive multiple complete objects in one chunk
+              
+              // Process all complete JSON objects in the accumulated string
+              while (accumulatedChunks.length > 0) {
+                // Look for a complete JSON array object
+                let startPos = accumulatedChunks.indexOf('[');
+                if (startPos === -1) break;
+                
+                // Try to find the matching closing bracket
+                let depth = 0;
+                let endPos = -1;
+                
+                for (let i = startPos; i < accumulatedChunks.length; i++) {
+                  if (accumulatedChunks[i] === '[') depth++;
+                  else if (accumulatedChunks[i] === ']') {
+                    depth--;
+                    if (depth === 0) {
+                      endPos = i;
+                      break;
+                    }
+                  }
+                }
+                
+                // If we didn't find a complete JSON object, wait for more chunks
+                if (endPos === -1) break;
+                
+                // Extract the complete JSON string
+                const jsonStr = accumulatedChunks.substring(startPos, endPos + 1);
+                // Remove the processed part from the accumulated string
+                accumulatedChunks = accumulatedChunks.substring(endPos + 1);
+                
+                // Parse the complete JSON
+                const items = JSON.parse(jsonStr);
+                chunkCount++;
+                
+                // Process each audio item in the array
+                if (Array.isArray(items)) {
+                  items.forEach(item => {
+                    if (item.audio) {
+                      // Process this audio chunk
+                      const audioData = httpClient.createAudioFromBase64(item.audio);
+                      
+                      // Create audio element for this chunk
+                      const audioElement = document.createElement('audio');
+                      audioElement.src = audioData.url;
+                      audioElement.controls = true;
+                      audioElement.className = 'audio-player';
+                      
+                      // Create info for this chunk
+                      const chunkInfo = document.createElement('div');
+                      chunkInfo.className = 'chunk-info';
+                      chunkInfo.innerHTML = `
+                        <h4>Chunk ${chunkCount}</h4>
+                        <p>Size: ${(audioData.blob.size / 1024).toFixed(2)} KB</p>
+                      `;
+                      
+                      // Add to container
+                      const chunkContainer = document.createElement('div');
+                      chunkContainer.className = 'chunk-container';
+                      chunkContainer.appendChild(chunkInfo);
+                      chunkContainer.appendChild(audioElement);
+                      audioContainer.appendChild(chunkContainer);
+                      
+                      // Update info panel
+                      infoPanel.innerHTML = `<h3>Audio Chunks</h3><p>Received ${chunkCount} chunks so far...</p>`;
+                    }
+                  });
+                }
+              }
+            } catch (error) {
+              // If we can't parse yet, just wait for more chunks
+              console.log('Waiting for more chunks to complete JSON:', error.message);
+            }
+          });
+          
+          ttsStatus.textContent = `Streaming completed! Received ${chunkCount} chunks.`;
+        } else {
+          // Handle regular response
+          const result = await response.json();
+          ttsStatus.textContent = 'Success!';
+          
+          // Clear previous audio elements
+          const resultDiv = document.getElementById('result');
+          resultDiv.textContent = '';
+          
+          // Check if result is an array (new format) or single object (old format)
+          const audioItems = Array.isArray(result) ? result : [result];
+          
+          if (audioItems.length > 0) {
+            console.log(`Received ${audioItems.length} audio item(s)`);
+            
+            // Create container for multiple audio players if needed
+            const audioContainer = document.createElement('div');
+            audioContainer.className = 'audio-container';
+            
+            // Process each audio item
+            for (let i = 0; i < audioItems.length; i++) {
+              const audioItem = audioItems[i];
+              
+              if (audioItem.audio) {
+                try {
+                  console.log(`Processing audio item ${i+1}/${audioItems.length}`);
+                  
+                  // Process base64 audio
+                  const audioData = httpClient.createAudioFromBase64(audioItem.audio);
+                  
+                  // Create audio element
+                  if (i === 0) {
+                    // Use the existing audio element for the first item
+                    ttsAudio.src = audioData.url;
+                    ttsAudio.style.display = 'block';
+                  } else {
+                    // Create additional audio elements for any extra items
+                    const additionalAudio = document.createElement('audio');
+                    additionalAudio.src = audioData.url;
+                    additionalAudio.controls = true;
+                    additionalAudio.className = 'audio-player';
+                    audioContainer.appendChild(additionalAudio);
+                  }
+                  
+                  // Add audio info for this item
+                  const audioInfoDiv = document.createElement('div');
+                  audioInfoDiv.classList.add('audio-info');
+                  audioInfoDiv.innerHTML = `
+                    <h3>Audio Item ${i+1}</h3>
+                    <ul>
+                      <li>Tipo MIME: ${audioData.mimeType}</li>
+                      <li>Tamanho do blob: ${(audioData.blob.size / 1024).toFixed(2)} KB</li>
+                      <li>Duração: <span id="audioDuration-${i}">carregando...</span></li>
+                    </ul>
+                    <details>
+                      <summary>Base64 Preview (primeiros 50 caracteres)</summary>
+                      <pre>${audioItem.audio.substring(0, 50)}...</pre>
+                    </details>
+                  `;
+                  audioContainer.appendChild(audioInfoDiv);
+                  
+                  // Update the duration when loaded
+                  if (i === 0) {
+                    ttsAudio.onloadedmetadata = function() {
+                      document.getElementById(`audioDuration-${i}`).textContent = `${ttsAudio.duration.toFixed(2)} segundos`;
+                    };
+                  }
+                } catch (audioError) {
+                  console.error(`Error processing audio item ${i+1}:`, audioError);
+                  const errorInfo = document.createElement('div');
+                  errorInfo.className = 'error-info';
+                  errorInfo.innerHTML = `
+                    <h3>Error in Audio Item ${i+1}</h3>
+                    <p>Error: ${audioError.message}</p>
+                  `;
+                  audioContainer.appendChild(errorInfo);
+                }
+              } else {
+                console.warn(`Audio item ${i+1} has no audio property:`, audioItem);
+              }
+            }
+            
+            // Add the audio container to the result div
+            resultDiv.appendChild(audioContainer);
+          } else if (result.error) {
+            document.getElementById('result').textContent = `Error: ${result.error}`;
+          } else {
+            document.getElementById('result').textContent = 'No audio data received';
+          }
+        }
+      } catch (error) {
+        ttsStatus.textContent = `Error: ${error.message}`;
+        document.getElementById('result').textContent = `Error: ${error.message}`;
+        console.error('Error generating speech:', error);
+      } finally {
+        ttsBtn.disabled = false;
+      }
+    });
+    
+    // Initialize visibility of voice options
+    if (ttsModelInput.value === 'onnx-community/Kokoro-82M-ONNX') {
+      kokoroVoiceContainer.classList.remove('hidden');
+    }
+    
+    // Translation
+    const translationInput = document.getElementById('translationInput');
+    const translationBtn = document.getElementById('translationBtn');
+    const translationStatus = document.getElementById('translationStatus');
+    const translationModelInput = document.getElementById('translationModelInput');
+    const translationDtypeInput = document.getElementById('translationDtypeInput');
+    const source_lang = document.getElementById('source_lang');
+    const tgtLangInput = document.getElementById('tgtLangInput');
+    
+    translationBtn.addEventListener('click', async function() {
+      if (!translationInput.value.trim()) {
+        translationStatus.textContent = 'Please enter text to translate.';
+        return;
+      }
+      
+      try {
+        translationBtn.disabled = true;
+        translationStatus.textContent = 'Translating...';
+        document.getElementById('result').textContent = 'Processing...';
+
+        const response = await httpClient.processTranslation(translationInput.value, {
+          model: translationModelInput.value,
+          dtype: translationDtypeInput.value,
+          srcLang: source_lang.value,
+          tgtLang: tgtLangInput.value
+        });
+
+        const result = await response.json();
+        translationStatus.textContent = 'Success!';
+        
+        if (result.translatedText) {
+          document.getElementById('result').textContent = result.translatedText;
+        } else if (result.error) {
+          document.getElementById('result').textContent = `Error: ${result.error}`;
+        }
+      } catch (error) {
+        translationStatus.textContent = `Error: ${error.message}`;
+        document.getElementById('result').textContent = `Error: ${error.message}`;
+        console.error('Error translating text:', error);
+      } finally {
+        translationBtn.disabled = false;
+      }
+    });
+    
+    // Text Generation
+    const systemPromptInput = document.getElementById('systemPromptInput');
+    const userPromptInput = document.getElementById('userPromptInput');
+    const textGenBtn = document.getElementById('textGenBtn');
+    const textGenStatus = document.getElementById('textGenStatus');
+    const textGenModelInput = document.getElementById('textGenModelInput');
+    const textGenDtypeInput = document.getElementById('textGenDtypeInput');
+    const maxTokensInput = document.getElementById('maxTokensInput');
+    const doSampleCheckbox = document.getElementById('doSampleCheckbox');
+    
+    textGenBtn.addEventListener('click', async function() {
+      if (!userPromptInput.value.trim()) {
+        textGenStatus.textContent = 'Please enter a prompt.';
+        return;
+      }
+      
+      try {
+        textGenBtn.disabled = true;
+        textGenStatus.textContent = 'Generating text...';
+        document.getElementById('result').textContent = 'Processing...';
+
+        // Create message array
+        const messages = [
+          { role: "system", content: systemPromptInput.value },
+          { role: "user", content: userPromptInput.value }
+        ];
+
+        const response = await httpClient.processTextGeneration(messages, {
+          model: textGenModelInput.value,
+          dtype: textGenDtypeInput.value,
+          max_new_tokens: parseInt(maxTokensInput.value),
+          do_sample: doSampleCheckbox.checked
+        });
+
+        const result = await response.json();
+        textGenStatus.textContent = 'Success!';
+        
+        if (result.generatedText) {
+          document.getElementById('result').textContent = result.generatedText;
+        } else if (result.error) {
+          document.getElementById('result').textContent = `Error: ${result.error}`;
+        }
+      } catch (error) {
+        textGenStatus.textContent = `Error: ${error.message}`;
+        document.getElementById('result').textContent = `Error: ${error.message}`;
+        console.error('Error generating text:', error);
+      } finally {
+        textGenBtn.disabled = false;
       }
     });
 
@@ -160,8 +759,8 @@
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
         audioFileInput.files = dataTransfer.files;
-        convertBtn.disabled = false;
-        statusElement.textContent = 'File input.wav loaded automatically';
+        asrBtn.disabled = false;
+        asrStatus.textContent = 'File input.wav loaded automatically';
       }
     }
 

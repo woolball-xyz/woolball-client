@@ -19,6 +19,22 @@ function App() {
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const timerIntervalRef = useRef<number | null>(null);
 
+  // States for new AI tasks
+  const [isTtsProcessing, setIsTtsProcessing] = useState(false);
+  const [ttsStatus, setTtsStatus] = useState('');
+  const [ttsElapsedTime, setTtsElapsedTime] = useState<number>(0);
+  const ttsTimerRef = useRef<number | null>(null);
+  
+  const [isTranslationProcessing, setIsTranslationProcessing] = useState(false);
+  const [translationStatus, setTranslationStatus] = useState('');
+  const [translationElapsedTime, setTranslationElapsedTime] = useState<number>(0);
+  const translationTimerRef = useRef<number | null>(null);
+  
+  const [isTextGenProcessing, setIsTextGenProcessing] = useState(false);
+  const [textGenStatus, setTextGenStatus] = useState('');
+  const [textGenElapsedTime, setTextGenElapsedTime] = useState<number>(0);
+  const textGenTimerRef = useRef<number | null>(null);
+
   // Fixed URL for audio file
   const fixedAudioUrl = "https://ia600107.us.archive.org/1/items/whizbangv3n30_2503_librivox/whizbangv3n30_00_fawcett.mp3";
   
@@ -57,6 +73,18 @@ function App() {
       if (timerIntervalRef.current !== null) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
+      }
+      if (ttsTimerRef.current !== null) {
+        clearInterval(ttsTimerRef.current);
+        ttsTimerRef.current = null;
+      }
+      if (translationTimerRef.current !== null) {
+        clearInterval(translationTimerRef.current);
+        translationTimerRef.current = null;
+      }
+      if (textGenTimerRef.current !== null) {
+        clearInterval(textGenTimerRef.current);
+        textGenTimerRef.current = null;
       }
     };
   }, []);
@@ -315,6 +343,11 @@ function App() {
     }
   };
 
+  // Format elapsed time as seconds with one decimal place
+  const formatElapsedTime = (ms: number): string => {
+    const seconds = (ms / 1000).toFixed(1);
+    return `${seconds}s`;
+  };
 
   // Function to generate cURL command
   const generateCurlCommand = () => {
@@ -329,6 +362,43 @@ function App() {
   -F "return_timestamps=false" \\
   -F "stream=true"`;
   };
+  
+  // Function to generate TTS cURL command
+  const generateTtsCurlCommand = () => {
+    const apiEndpoint = API_URL + '/text-to-speech';
+    return `curl -X POST \\
+  "${apiEndpoint}" \\
+  -H "Content-Type: multipart/form-data" \\
+  -F "input=your text to synthesize" \\
+  -F "model=Xenova/mms-tts-eng" \\
+  -F "dtype=q8"`;
+  };
+  
+  // Function to generate Translation cURL command
+  const generateTranslationCurlCommand = () => {
+    const apiEndpoint = API_URL + '/translation';
+    return `curl -X POST \\
+  "${apiEndpoint}" \\
+  -H "Content-Type: multipart/form-data" \\
+  -F "input=your text to translate" \\
+  -F "model=Xenova/nllb-200-distilled-600M" \\
+  -F "dtype=q8" \\
+  -F "srcLang=eng_Latn" \\
+  -F "tgtLang=por_Latn"`;
+  };
+  
+  // Function to generate Text Generation cURL command
+  const generateTextGenCurlCommand = () => {
+    const apiEndpoint = API_URL + '/text-generation';
+    return `curl -X POST \\
+  "${apiEndpoint}" \\
+  -H "Content-Type: multipart/form-data" \\
+  -F 'input=[{"role":"system","content":"You are a helpful assistant."},{"role":"user","content":"Your question here"}]' \\
+  -F "model=HuggingFaceTB/SmolLM2-135M-Instruct" \\
+  -F "dtype=fp16" \\
+  -F "max_new_tokens=250" \\
+  -F "do_sample=false"`;
+  };
 
   // Function to copy cURL to clipboard
   const copyCurlToClipboard = () => {
@@ -341,11 +411,314 @@ function App() {
         console.error('Error copying to clipboard:', err);
       });
   };
+  
+  // Function to copy TTS cURL to clipboard
+  const copyTtsCurlToClipboard = () => {
+    navigator.clipboard.writeText(generateTtsCurlCommand())
+      .then(() => {
+        setCopiedToClipboard(true);
+        setTimeout(() => setCopiedToClipboard(false), 2000);
+      })
+      .catch(err => {
+        console.error('Error copying to clipboard:', err);
+      });
+  };
+  
+  // Function to copy Translation cURL to clipboard
+  const copyTranslationCurlToClipboard = () => {
+    navigator.clipboard.writeText(generateTranslationCurlCommand())
+      .then(() => {
+        setCopiedToClipboard(true);
+        setTimeout(() => setCopiedToClipboard(false), 2000);
+      })
+      .catch(err => {
+        console.error('Error copying to clipboard:', err);
+      });
+  };
+  
+  // Function to copy Text Generation cURL to clipboard
+  const copyTextGenCurlToClipboard = () => {
+    navigator.clipboard.writeText(generateTextGenCurlCommand())
+      .then(() => {
+        setCopiedToClipboard(true);
+        setTimeout(() => setCopiedToClipboard(false), 2000);
+      })
+      .catch(err => {
+        console.error('Error copying to clipboard:', err);
+      });
+  };
 
-  // Format elapsed time as seconds with one decimal place
-  const formatElapsedTime = (ms: number): string => {
-    const seconds = (ms / 1000).toFixed(1);
-    return `${seconds}s`;
+  // Process text to speech
+  const startTtsProcessing = async () => {
+    // Reset states
+    setIsTtsProcessing(true);
+    setTtsStatus('Preparing voice synthesis...');
+    setTtsElapsedTime(0);
+    
+    // Start the timer
+    const startTime = Date.now();
+    ttsTimerRef.current = window.setInterval(() => {
+      setTtsElapsedTime(Date.now() - startTime);
+    }, 100);
+    
+    // Fixed text for TTS
+    const fixedText = "Hello, this is a test of the text to speech system. Running AI models directly in your browser is now possible.";
+    
+    try {
+      console.log('🔊 Starting Text-to-Speech process');
+      console.log(`Fixed text: "${fixedText}"`);
+      
+      // Update status for UI
+      setTimeout(() => {
+        console.log('Step 2: Generating voice...');
+        setTtsStatus('Generating voice...');
+      }, 1000);
+      
+      const formData = new FormData();
+      formData.append('input', fixedText);
+      formData.append('model', 'Xenova/mms-tts-eng');
+      formData.append('dtype', 'q8');
+      
+      console.log('📤 Sending TTS request:', {
+        text: fixedText,
+        model: 'Xenova/mms-tts-eng',
+        dtype: 'q8'
+      });
+      
+      const response = await fetch(API_URL + '/text-to-speech', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, response.statusText, errorText);
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+      
+      console.log('✅ API response received, processing audio data');
+      setTtsStatus('Processing audio data...');
+      
+      try {
+        const result = await response.json();
+        
+        // Verificar se a resposta é um array
+        if (Array.isArray(result)) {
+          const audioItems = result.filter(item => item.audio);
+          
+          if (audioItems.length > 0) {
+            // Calcular o tamanho total dos dados de áudio
+            const totalBytes = audioItems.reduce((total, item) => {
+              return total + (item.audio ? item.audio.length : 0);
+            }, 0);
+            console.log(`Received audio data: ${totalBytes} bytes (${(totalBytes / 1024).toFixed(2)} KB)`);
+            setTtsStatus("Success, open DevTools to see results");
+          } else {
+            throw new Error('Nenhum áudio encontrado na resposta da API');
+          }
+        } else if (result.audio) {
+          const audioBytes = result.audio.length;
+          console.log(`Received audio data: ${audioBytes} bytes (${(audioBytes / 1024).toFixed(2)} KB)`);
+          setTtsStatus("Success, open DevTools to see results");
+        } else if (result.error) {
+          throw new Error(result.error);
+        } else {
+          throw new Error('Resposta da API não contém dados de áudio');
+        }
+      } catch (parseError: unknown) {
+        throw new Error(`Erro ao processar resposta: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      }
+      
+      // Clear the timer interval
+      if (ttsTimerRef.current !== null) {
+        clearInterval(ttsTimerRef.current);
+        ttsTimerRef.current = null;
+      }
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      console.error('❌ Error in Text-to-Speech process:', errorMessage);
+      setTtsStatus(`Error: ${errorMessage}`);
+      
+      // Clear the timer interval on error
+      if (ttsTimerRef.current !== null) {
+        clearInterval(ttsTimerRef.current);
+        ttsTimerRef.current = null;
+      }
+    } finally {
+      setIsTtsProcessing(false);
+    }
+  };
+  
+  // Process text translation
+  const startTranslationProcessing = async () => {
+    // Reset states
+    setIsTranslationProcessing(true);
+    setTranslationStatus('Preparing translation...');
+    setTranslationElapsedTime(0);
+    
+    // Start the timer
+    const startTime = Date.now();
+    translationTimerRef.current = window.setInterval(() => {
+      setTranslationElapsedTime(Date.now() - startTime);
+    }, 100);
+    
+    // Fixed text for translation
+    const fixedText = "The quick brown fox jumps over the lazy dog. Machine learning has transformed how we process natural language.";
+    
+    try {
+      console.log('🌐 Starting Translation process');
+      console.log(`Text to translate: "${fixedText}"`);
+      
+      // Update status for UI
+      setTimeout(() => {
+        console.log('Step 2: Translating...');
+        setTranslationStatus('Translating...');
+      }, 1000);
+      
+      const formData = new FormData();
+      formData.append('input', fixedText);
+      formData.append('model', 'Xenova/nllb-200-distilled-600M');
+      formData.append('dtype', 'q8');
+      formData.append('srcLang', 'eng_Latn');
+      formData.append('tgtLang', 'por_Latn');
+      
+      console.log('📤 Sending translation request:', {
+        text: fixedText,
+        model: 'Xenova/nllb-200-distilled-600M',
+        dtype: 'q8',
+        srcLang: 'eng_Latn',
+        tgtLang: 'por_Latn'
+      });
+      
+      const response = await fetch(API_URL + '/translation', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, response.statusText, errorText);
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+      
+      console.log('✅ API response received, processing translation');
+      
+      const result = await response.json();
+      
+      if (result.translatedText) {
+        console.log('🔤 Translation result:', result.translatedText);
+        setTranslationStatus("Success, open DevTools to see results");
+      } else if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      // Clear the timer interval
+      if (translationTimerRef.current !== null) {
+        clearInterval(translationTimerRef.current);
+        translationTimerRef.current = null;
+      }
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      console.error('❌ Error in Translation process:', errorMessage);
+      setTranslationStatus(`Error: ${errorMessage}`);
+      
+      // Clear the timer interval on error
+      if (translationTimerRef.current !== null) {
+        clearInterval(translationTimerRef.current);
+        translationTimerRef.current = null;
+      }
+    } finally {
+      setIsTranslationProcessing(false);
+    }
+  };
+  
+  // Process text generation
+  const startTextGenProcessing = async () => {
+    // Reset states
+    setIsTextGenProcessing(true);
+    setTextGenStatus('Preparing AI model...');
+    setTextGenElapsedTime(0);
+    
+    // Start the timer
+    const startTime = Date.now();
+    textGenTimerRef.current = window.setInterval(() => {
+      setTextGenElapsedTime(Date.now() - startTime);
+    }, 100);
+    
+    // Fixed messages for text generation
+    const messages = [
+      { role: "system", content: "You are a helpful assistant." },
+      { role: "user", content: "What is the capital of Brazil?" }
+    ];
+    
+    try {
+      console.log('🤖 Starting Text Generation process');
+      console.log('Messages:', messages);
+      
+      // Update status for UI
+      setTimeout(() => {
+        console.log('Step 2: Generating response...');
+        setTextGenStatus('Generating response...');
+      }, 1000);
+      
+      const formData = new FormData();
+      formData.append('input', JSON.stringify(messages));
+      formData.append('model', 'HuggingFaceTB/SmolLM2-135M-Instruct');
+      formData.append('dtype', 'fp16');
+      formData.append('max_new_tokens', '250');
+      formData.append('do_sample', 'false');
+      
+      console.log('📤 Sending text generation request:', {
+        messages,
+        model: 'HuggingFaceTB/SmolLM2-135M-Instruct',
+        dtype: 'fp16',
+        max_new_tokens: 250,
+        do_sample: false
+      });
+      
+      const response = await fetch(API_URL + '/text-generation', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, response.statusText, errorText);
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+      
+      console.log('✅ API response received, processing generated text');
+      
+      const result = await response.json();
+      
+      if (result.generatedText) {
+        console.log('📝 Generated text:', result.generatedText);
+        setTextGenStatus("Success, open DevTools to see results");
+      } else if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      // Clear the timer interval
+      if (textGenTimerRef.current !== null) {
+        clearInterval(textGenTimerRef.current);
+        textGenTimerRef.current = null;
+      }
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      console.error('❌ Error in Text Generation process:', errorMessage);
+      setTextGenStatus(`Error: ${errorMessage}`);
+      
+      // Clear the timer interval on error
+      if (textGenTimerRef.current !== null) {
+        clearInterval(textGenTimerRef.current);
+        textGenTimerRef.current = null;
+      }
+    } finally {
+      setIsTextGenProcessing(false);
+    }
   };
 
   return (
@@ -522,6 +895,197 @@ function App() {
             ) : null}
             
             {fileError && <div className="file-error">{fileError}</div>}
+          </div>
+          
+          {/* Text-to-Speech Test Card */}
+          <div className="http-test-card">  
+            <div className="http-test-top-line">
+              <div className="http-test-method">TEXT TO SPEECH</div>
+              <span className="http-test-service-name">HTTP REQUEST</span>
+            </div>
+            <div className="http-test-header">
+              <span className="http-test-title">Xenova/mms-tts-eng</span>
+              <div className="card-actions">
+                <button 
+                  className={`copy-curl-button ${copiedToClipboard ? 'copied' : ''}`}
+                  onClick={copyTtsCurlToClipboard}
+                  aria-label="Copy cURL command to clipboard"
+                >
+                  <span className="copy-icon">
+                    {copiedToClipboard ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="currentColor"/>
+                      </svg>
+                    )}
+                  </span>
+                  <span className="tooltip">Copy cURL</span>
+                </button>
+                <button 
+                  className={`play-button ${isTtsProcessing ? 'processing' : ''}`}
+                  onClick={startTtsProcessing}
+                  aria-label="Run TTS test"
+                  disabled={isTtsProcessing}
+                >
+                  <span className="play-icon">▶</span>
+                  <span className="tooltip">Run Test</span>
+                </button>
+              </div>
+            </div>
+           
+            {isTtsProcessing ? (
+              <div className="processing-indicator">
+                <span className="spinner"></span>
+                {ttsStatus ? ttsStatus : 'Processando...'}
+                <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
+              </div>
+            ) : ttsStatus ? (
+              ttsStatus.includes("Success") ? (
+                <div className="success-message">
+                  <span className="check-icon">✓</span>
+                  {ttsStatus}
+                  <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
+                </div>
+              ) : ttsStatus.includes("Error") ? (
+                <div className="error-message">
+                  <span className="error-icon">❌</span>
+                  {ttsStatus}
+                  <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
+                </div>
+              ) : (
+                <div className="info-message">
+                  <span className="info-icon">ℹ️</span>
+                  {ttsStatus}
+                  <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
+                </div>
+              )
+            ) : !running ? (
+              <div className="waiting-message">
+                <span className="info-icon">ℹ️</span>
+                Press START to also be a node
+              </div>
+            ) : null}
+          </div>
+          
+          {/* Translation Test Card */}
+          <div className="http-test-card">  
+            <div className="http-test-top-line">
+              <div className="http-test-method">TRANSLATION</div>
+              <span className="http-test-service-name">HTTP REQUEST</span>
+            </div>
+            <div className="http-test-header">
+              <span className="http-test-title">Xenova/nllb-200-distilled-600M</span>
+              <div className="card-actions">
+                <button 
+                  className={`copy-curl-button ${copiedToClipboard ? 'copied' : ''}`}
+                  onClick={copyTranslationCurlToClipboard}
+                  aria-label="Copy cURL command to clipboard"
+                >
+                  <span className="copy-icon">
+                    {copiedToClipboard ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="currentColor"/>
+                      </svg>
+                    )}
+                  </span>
+                  <span className="tooltip">Copy cURL</span>
+                </button>
+                <button 
+                  className={`play-button ${isTranslationProcessing ? 'processing' : ''}`}
+                  onClick={startTranslationProcessing}
+                  aria-label="Run translation test"
+                  disabled={isTranslationProcessing}
+                >
+                  <span className="play-icon">▶</span>
+                  <span className="tooltip">Run Test</span>
+                </button>
+              </div>
+            </div>
+           
+            {isTranslationProcessing ? (
+              <div className="processing-indicator">
+                <span className="spinner"></span>
+                {translationStatus}
+                <span className="elapsed-time">{formatElapsedTime(translationElapsedTime)}</span>
+              </div>
+            ) : translationStatus?.includes("Success") ? (
+              <div className="success-message">
+                <span className="check-icon">✓</span>
+                {translationStatus}
+                <span className="elapsed-time">{formatElapsedTime(translationElapsedTime)}</span>
+              </div>
+            ) : !running ? (
+              <div className="waiting-message">
+                <span className="info-icon">ℹ️</span>
+                Press START to also be a node
+              </div>
+            ) : null}
+          </div>
+          
+          {/* Text Generation Test Card */}
+          <div className="http-test-card">  
+            <div className="http-test-top-line">
+              <div className="http-test-method">TEXT GENERATION</div>
+              <span className="http-test-service-name">HTTP REQUEST</span>
+            </div>
+            <div className="http-test-header">
+              <span className="http-test-title">HuggingFaceTB/SmolLM2-135M-Instruct</span>
+              <div className="card-actions">
+                <button 
+                  className={`copy-curl-button ${copiedToClipboard ? 'copied' : ''}`}
+                  onClick={copyTextGenCurlToClipboard}
+                  aria-label="Copy cURL command to clipboard"
+                >
+                  <span className="copy-icon">
+                    {copiedToClipboard ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="currentColor"/>
+                      </svg>
+                    )}
+                  </span>
+                  <span className="tooltip">Copy cURL</span>
+                </button>
+                <button 
+                  className={`play-button ${isTextGenProcessing ? 'processing' : ''}`}
+                  onClick={startTextGenProcessing}
+                  aria-label="Run text generation test"
+                  disabled={isTextGenProcessing}
+                >
+                  <span className="play-icon">▶</span>
+                  <span className="tooltip">Run Test</span>
+                </button>
+              </div>
+            </div>
+           
+            {isTextGenProcessing ? (
+              <div className="processing-indicator">
+                <span className="spinner"></span>
+                {textGenStatus}
+                <span className="elapsed-time">{formatElapsedTime(textGenElapsedTime)}</span>
+              </div>
+            ) : textGenStatus?.includes("Success") ? (
+              <div className="success-message">
+                <span className="check-icon">✓</span>
+                {textGenStatus}
+                <span className="elapsed-time">{formatElapsedTime(textGenElapsedTime)}</span>
+              </div>
+            ) : !running ? (
+              <div className="waiting-message">
+                <span className="info-icon">ℹ️</span>
+                Press START to also be a node
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
