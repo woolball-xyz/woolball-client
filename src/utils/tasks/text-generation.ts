@@ -51,14 +51,22 @@ export async function textGeneration(data: TaskData): Promise<TaskResult> {
         );
       }
       
-      // Simple chat request with minimal parameters
-      const request = {
+      const request: any = {
         n: 1,
         stream: !!stream,
         messages: messages,
-        presence_penalty: 0.8,
-        frequency_penalty: 0.8
       };
+
+      // Only add parameters if they exist in options
+      if (options.context_window_size !== undefined) request.context_window_size = options.context_window_size;
+      if (options.sliding_window_size !== undefined) request.sliding_window_size = options.sliding_window_size;
+      if (options.attention_sink_size !== undefined) request.attention_sink_size = options.attention_sink_size;
+      if (options.repetition_penalty !== undefined) request.repetition_penalty = options.repetition_penalty;
+      if (options.frequency_penalty !== undefined) request.frequency_penalty = options.frequency_penalty;
+      if (options.presence_penalty !== undefined) request.presence_penalty = options.presence_penalty;
+      if (options.top_p !== undefined) request.top_p = options.top_p;
+      if (temperature !== undefined) request.temperature = temperature;
+      if (options.bos_token_id !== undefined) request.bos_token_id = options.bos_token_id;
       
       if (stream) {
         // For streaming, return the generator
@@ -102,11 +110,16 @@ export async function textGeneration(data: TaskData): Promise<TaskResult> {
   });
   
   // Execute the generation
-  const result = await pipe(messages, { 
-    max_new_tokens: max_new_tokens,
-    do_sample: do_sample,
-    ...options
-  });
+  const generationOptions: any = {};
+  
+  // Only add parameters if they exist
+  if (max_new_tokens !== undefined) generationOptions.max_new_tokens = max_new_tokens;
+  if (do_sample !== undefined) generationOptions.do_sample = do_sample;
+  if (temperature !== undefined) generationOptions.temperature = temperature;
+  if (options.top_p !== undefined) generationOptions.top_p = options.top_p;
+  if (options.repetition_penalty !== undefined) generationOptions.repetition_penalty = options.repetition_penalty;
+  
+  const result = await pipe(messages, generationOptions);
   
   // Extract the generated text
   const firstResult = result[0];
