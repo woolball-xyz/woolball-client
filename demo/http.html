@@ -159,6 +159,7 @@
     <div class="tab" data-tab="tts">Text to Speech</div>
     <div class="tab" data-tab="translation">Translation</div>
     <div class="tab" data-tab="text-generation">Text Generation</div>
+    <div class="tab" data-tab="webllm-text-generation">WebLLM Text Generation</div>
   </div>
   
   <div class="tab-content active" id="asr-content">
@@ -318,6 +319,31 @@
       </div>
       <button id="textGenBtn">Generate</button>
       <p class="status" id="textGenStatus">Enter a prompt to generate text.</p>
+    </div>
+  </div>
+  
+  <div class="tab-content" id="webllm-text-generation-content">
+    <div class="card">
+      <h2>WebLLM Text Generation</h2>
+      <div class="input-group">
+        <label for="webllmSystemPromptInput">System Prompt</label>
+        <textarea id="webllmSystemPromptInput">You are a helpful assistant.</textarea>
+        
+        <label for="webllmUserPromptInput">User Prompt</label>
+        <textarea id="webllmUserPromptInput" placeholder="Enter your prompt">What is the capital of the Brazil?</textarea>
+        
+        <label for="webllmModelInput">Model</label>
+        <input type="text" id="webllmModelInput" value="SmolLM2-1.7B-Instruct-q4f32_1-MLC">
+        
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="webllmStreamCheckbox">
+            Enable streaming
+          </label>
+        </div>
+      </div>
+      <button id="webllmGenBtn">Generate with WebLLM</button>
+      <p class="status" id="webllmGenStatus">Enter a prompt to generate text using WebLLM.</p>
     </div>
   </div>
   
@@ -584,7 +610,7 @@
                   const audioData = httpClient.createAudioFromBase64(audioItem.audio);
                   
                   // Create audio element
-                  if (i === 0) {
+                  if (i === 0) {  
                     // Use the existing audio element for the first item
                     ttsAudio.src = audioData.url;
                     ttsAudio.style.display = 'block';
@@ -763,6 +789,90 @@
         asrStatus.textContent = 'File input.wav loaded automatically';
       }
     }
+
+    // WebLLM Text Generation
+    const webllmSystemPromptInput = document.getElementById('webllmSystemPromptInput');
+    const webllmUserPromptInput = document.getElementById('webllmUserPromptInput');
+    const webllmGenBtn = document.getElementById('webllmGenBtn');
+    const webllmGenStatus = document.getElementById('webllmGenStatus');
+    const webllmModelInput = document.getElementById('webllmModelInput');
+    const webllmStreamCheckbox = document.getElementById('webllmStreamCheckbox');
+    
+    webllmGenBtn.addEventListener('click', async function() {
+      if (!webllmUserPromptInput.value.trim()) {
+        webllmGenStatus.textContent = 'Please enter a prompt.';
+        return;
+      }
+      
+      try {
+        webllmGenBtn.disabled = true;
+        webllmGenStatus.textContent = 'Generating text with WebLLM...';
+        document.getElementById('result').textContent = 'Processing...';
+
+        // Create message array - include system and user messages
+        const messages = [
+          { role: "system", content: webllmSystemPromptInput.value },
+          { role: "user", content: webllmUserPromptInput.value }
+        ];
+
+        // Keep it simple - just use boolean for stream
+        const stream = webllmStreamCheckbox.checked;
+
+        // Using processTextGeneration with provider='webllm'
+        const response = await httpClient.processTextGeneration(messages, {
+          model: webllmModelInput.value,
+          stream: stream,
+          provider: 'webllm'
+        });
+
+        if (stream) {
+          // Handle streaming response
+          webllmGenStatus.textContent = 'Streaming results...';
+          document.getElementById('result').textContent = '';
+          
+          let resultText = '';
+          
+          await httpClient.handleStreamResponse(response, (chunk) => {
+            try {
+              // Try to parse JSON if it's a JSON chunk
+              const jsonData = JSON.parse(chunk);
+              if (jsonData.choices && jsonData.choices[0] && jsonData.choices[0].delta) {
+                const content = jsonData.choices[0].delta.content || '';
+                resultText += content;
+                document.getElementById('result').textContent = resultText;
+              }
+            } catch (e) {
+              // If it's not JSON, just append the raw text
+              document.getElementById('result').textContent += chunk;
+            }
+          });
+          
+          // Get final message after streaming is complete
+          const finalResult = await response.json().catch(e => ({}));
+          if (finalResult.fullMessage) {
+            document.getElementById('result').textContent = finalResult.fullMessage;
+          }
+          
+          webllmGenStatus.textContent = 'Generation completed!';
+        } else {
+          // Regular response handling
+          const result = await response.json();
+          webllmGenStatus.textContent = 'Success!';
+          
+          if (result.generatedText) {
+            document.getElementById('result').textContent = result.generatedText;
+          } else if (result.error) {
+            document.getElementById('result').textContent = `Error: ${result.error}`;
+          }
+        }
+      } catch (error) {
+        webllmGenStatus.textContent = `Error: ${error.message}`;
+        document.getElementById('result').textContent = `Error: ${error.message}`;
+        console.error('Error generating text with WebLLM:', error);
+      } finally {
+        webllmGenBtn.disabled = false;
+      }
+    });
 
     // Initialize the application
     document.addEventListener('DOMContentLoaded', function() {
