@@ -4,6 +4,7 @@ export interface TaskData {
   input: string;
   model: string;
   dtype?: string;
+  provider?: 'transformers' | 'webllm';  // Optional provider field to select backend implementation
   [key: string]: any;
 }
 

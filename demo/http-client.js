@@ -184,14 +184,30 @@ export class HttpClient {
     const formData = new FormData();
     formData.append('input', JSON.stringify(messages));
     formData.append('model', options.model);
-    formData.append('dtype', options.dtype);
+    
+    if (options.dtype) {
+      formData.append('dtype', options.dtype);
+    }
     
     if (options.max_new_tokens) {
       formData.append('max_new_tokens', options.max_new_tokens);
     }
     
+    if (options.temperature) {
+      formData.append('temperature', options.temperature);
+    }
+    
     if (options.do_sample !== undefined) {
       formData.append('do_sample', options.do_sample ? 'true' : 'false');
+    }
+    
+    if (options.stream !== undefined) {
+      formData.append('stream', options.stream ? 'true' : 'false');
+    }
+    
+    // Set the provider for text generation (transformers or webllm)
+    if (options.provider) {
+      formData.append('provider', options.provider);
     }
 
     const response = await fetch(`${this.apiUrl}/api/v1/text-generation`, {
