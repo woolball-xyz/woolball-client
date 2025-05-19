@@ -12,7 +12,7 @@ export async function asr(data: TaskData): Promise<TaskResult> {
     device: 'webgpu',
   });
   
-  const result = await pipe(audioData, options);
+  const result = await pipe(audioData, options as any);
   
   await pipe.dispose();
   
