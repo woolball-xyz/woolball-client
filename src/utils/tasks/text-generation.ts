@@ -1,16 +1,14 @@
 import { TaskData, TaskResult } from './types';
 
-// Define progress callback interface
 interface ProgressCallback {
   progress: number;
   text: string;
   [key: string]: any;
 }
 
-// Store a single WebLLM engine instance
 let webLLMEngine: any = null;
+let mediaPipeLLM: any = null;
 
-// Main text generation function
 export async function textGeneration(data: TaskData): Promise<TaskResult> {
   const { 
     input, 
@@ -98,6 +96,73 @@ export async function textGeneration(data: TaskData): Promise<TaskResult> {
       throw error;
     }
   }
+  console.log('provider', provider);
+  if (provider === 'mediapipe') {
+    try {
+      console.log('[text-generation] Using MediaPipe provider');
+      
+      const { FilesetResolver, LlmInference } = await import('@mediapipe/tasks-genai');
+      
+      if (!mediaPipeLLM) {
+        console.log(`[MediaPipe] Initializing LLM with model ${model}`);
+        const genaiFileset = await FilesetResolver.forGenAiTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai/wasm'
+        );
+        
+        mediaPipeLLM = await LlmInference.createFromOptions(genaiFileset, {
+          baseOptions: { modelAssetPath: model },
+          maxTokens: options.maxTokens,
+          randomSeed: options.randomSeed,
+          topK: options.topK,
+          temperature: temperature
+        });
+      }
+
+      const lastUserMessage = messages
+        .filter((msg: any) => msg.role === 'user')
+        .pop()?.content || '';
+
+      if (stream) {
+        const generator = (async function* () {
+          let fullResponse = '';
+          
+          await mediaPipeLLM.generateResponse(
+            lastUserMessage,
+            (partialResults: string, complete: boolean) => {
+              fullResponse += partialResults;
+              if (complete) {
+                return fullResponse;
+              }
+            }
+          );
+
+          return fullResponse;
+        })();
+
+        return {
+          streamingResponse: true,
+          generator,
+          onComplete: async () => {
+            return await generator.next();
+          }
+        };
+      } else {
+        let fullResponse = '';
+        await mediaPipeLLM.generateResponse(
+          lastUserMessage,
+          (partialResults: string, complete: boolean) => {
+            fullResponse += partialResults;
+          }
+        );
+
+        return { generatedText: fullResponse };
+      }
+    } catch (error) {
+      console.error('MediaPipe text generation error:', error);
+      throw error;
+    }
+  }
+  
   
   // Default: Use transformers.js implementation
   console.log('[text-generation] Using transformers.js provider');

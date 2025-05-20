@@ -160,6 +160,7 @@
     <div class="tab" data-tab="translation">Translation</div>
     <div class="tab" data-tab="text-generation">Text Generation</div>
     <div class="tab" data-tab="webllm-text-generation">WebLLM Text Generation</div>
+    <div class="tab" data-tab="mediapipe-text-generation">MediaPipe Text Generation</div>
   </div>
   
   <div class="tab-content active" id="asr-content">
@@ -344,6 +345,43 @@
       </div>
       <button id="webllmGenBtn">Generate with WebLLM</button>
       <p class="status" id="webllmGenStatus">Enter a prompt to generate text using WebLLM.</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="mediapipe-text-generation-content">
+    <div class="card">
+      <h2>MediaPipe Text Generation</h2>
+      <div class="input-group">
+        <label for="mediapipeSystemPromptInput">System Prompt</label>
+        <textarea id="mediapipeSystemPromptInput">You are a helpful assistant.</textarea>
+        
+        <label for="mediapipeUserPromptInput">User Prompt</label>
+        <textarea id="mediapipeUserPromptInput" placeholder="Enter your prompt">What is the capital of the Brazil?</textarea>
+        
+        <label for="mediapipeModelInput">Model</label>
+        <input type="text" id="mediapipeModelInput" value="http://127.0.0.1:5500/demo/assets/gemma3-1b-it-int4.task">
+
+        <label for="mediapipeMaxTokensInput">Max Tokens</label>
+        <input type="number" id="mediapipeMaxTokensInput" value="1000">
+
+        <label for="mediapipeRandomSeedInput">Random Seed</label>
+        <input type="number" id="mediapipeRandomSeedInput" value="101">
+
+        <label for="mediapipeTopKInput">Top K</label>
+        <input type="number" id="mediapipeTopKInput" value="40">
+
+        <label for="mediapipeTemperatureInput">Temperature</label>
+        <input type="number" id="mediapipeTemperatureInput" value="0.8" step="0.1">
+        
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="mediapipeStreamCheckbox">
+            Enable streaming
+          </label>
+        </div>
+      </div>
+      <button id="mediapipeGenBtn">Generate with MediaPipe</button>
+      <p class="status" id="mediapipeGenStatus">Enter a prompt to generate text using MediaPipe.</p>
     </div>
   </div>
   
@@ -637,7 +675,7 @@
                       <summary>Base64 Preview (primeiros 50 caracteres)</summary>
                       <pre>${audioItem.audio.substring(0, 50)}...</pre>
                     </details>
-                  `;
+                  `;;
                   audioContainer.appendChild(audioInfoDiv);
                   
                   // Update the duration when loaded
@@ -877,6 +915,77 @@
     // Initialize the application
     document.addEventListener('DOMContentLoaded', function() {
       loadDefaultAudio();
+    });
+
+    // MediaPipe Text Generation
+    const mediapipeSystemPromptInput = document.getElementById('mediapipeSystemPromptInput');
+    const mediapipeUserPromptInput = document.getElementById('mediapipeUserPromptInput');
+    const mediapipeGenBtn = document.getElementById('mediapipeGenBtn');
+    const mediapipeGenStatus = document.getElementById('mediapipeGenStatus');
+    const mediapipeModelInput = document.getElementById('mediapipeModelInput');
+    const mediapipeMaxTokensInput = document.getElementById('mediapipeMaxTokensInput');
+    const mediapipeRandomSeedInput = document.getElementById('mediapipeRandomSeedInput');
+    const mediapipeTopKInput = document.getElementById('mediapipeTopKInput');
+    const mediapipeTemperatureInput = document.getElementById('mediapipeTemperatureInput');
+    const mediapipeStreamCheckbox = document.getElementById('mediapipeStreamCheckbox');
+    
+    mediapipeGenBtn.addEventListener('click', async function() {
+      if (!mediapipeUserPromptInput.value.trim()) {
+        mediapipeGenStatus.textContent = 'Please enter a prompt.';
+        return;
+      }
+      
+      try {
+        mediapipeGenBtn.disabled = true;
+        mediapipeGenStatus.textContent = 'Generating text with MediaPipe...';
+        document.getElementById('result').textContent = 'Processing...';
+
+        const messages = [
+          { role: "system", content: mediapipeSystemPromptInput.value },
+          { role: "user", content: mediapipeUserPromptInput.value }
+        ];
+
+        const stream = mediapipeStreamCheckbox.checked;
+
+        const response = await httpClient.processTextGeneration(messages, {
+          model: mediapipeModelInput.value,
+          stream: stream,
+          provider: 'mediapipe',
+          maxTokens: parseInt(mediapipeMaxTokensInput.value),
+          randomSeed: parseInt(mediapipeRandomSeedInput.value),
+          topK: parseInt(mediapipeTopKInput.value),
+          temperature: parseFloat(mediapipeTemperatureInput.value)
+        });
+
+        if (stream) {
+          mediapipeGenStatus.textContent = 'Streaming results...';
+          document.getElementById('result').textContent = '';
+          
+          let resultText = '';
+          
+          await httpClient.handleStreamResponse(response, (chunk) => {
+            resultText += chunk;
+            document.getElementById('result').textContent = resultText;
+          });
+          
+          mediapipeGenStatus.textContent = 'Generation completed!';
+        } else {
+          const result = await response.json();
+          mediapipeGenStatus.textContent = 'Success!';
+          
+          if (result.generatedText) {
+            document.getElementById('result').textContent = result.generatedText;
+          } else if (result.error) {
+            document.getElementById('result').textContent = `Error: ${result.error}`;
+          }
+        }
+      } catch (error) {
+        mediapipeGenStatus.textContent = `Error: ${error.message}`;
+        document.getElementById('result').textContent = `Error: ${error.message}`;
+        console.error('Error generating text with MediaPipe:', error);
+      } finally {
+        mediapipeGenBtn.disabled = false;
+      }
     });
   </script>
 </body>

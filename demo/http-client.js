@@ -199,7 +199,7 @@ export class HttpClient {
     
     if (options.do_sample !== undefined) {
       formData.append('do_sample', options.do_sample ? 'true' : 'false');
-    }
+    } 
     
     if (options.stream !== undefined) {
       formData.append('stream', options.stream ? 'true' : 'false');
@@ -208,6 +208,19 @@ export class HttpClient {
     // Set the provider for text generation (transformers or webllm)
     if (options.provider) {
       formData.append('provider', options.provider);
+    }
+
+    // MediaPipe specific parameters
+    if (options.provider === 'mediapipe') {
+      if (options.maxTokens !== undefined) {
+        formData.append('maxTokens', options.maxTokens);
+      }
+      if (options.randomSeed !== undefined) {
+        formData.append('randomSeed', options.randomSeed);
+      }
+      if (options.topK !== undefined) {
+        formData.append('topK', options.topK);
+      }
     }
 
     const response = await fetch(`${this.apiUrl}/api/v1/text-generation`, {
