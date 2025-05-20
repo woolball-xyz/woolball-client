@@ -1,14 +1,17 @@
 import { TaskData, TaskResult } from './types';
 
+// Define progress callback interface
 interface ProgressCallback {
   progress: number;
   text: string;
   [key: string]: any;
 }
 
+// Store a single WebLLM engine instance
 let webLLMEngine: any = null;
 let mediaPipeLLM: any = null;
 
+// Main text generation function
 export async function textGeneration(data: TaskData): Promise<TaskResult> {
   const { 
     input, 
@@ -96,7 +99,7 @@ export async function textGeneration(data: TaskData): Promise<TaskResult> {
       throw error;
     }
   }
-  console.log('provider', provider);
+  
   if (provider === 'mediapipe') {
     try {
       console.log('[text-generation] Using MediaPipe provider');
