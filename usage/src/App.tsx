@@ -35,6 +35,24 @@ function App() {
   const [textGenElapsedTime, setTextGenElapsedTime] = useState<number>(0);
   const textGenTimerRef = useRef<number | null>(null);
 
+  // States for Kokoro TTS
+  const [isKokoroProcessing, setIsKokoroProcessing] = useState(false);
+  const [kokoroStatus, setKokoroStatus] = useState('');
+  const [kokoroElapsedTime, setKokoroElapsedTime] = useState<number>(0);
+  const kokoroTimerRef = useRef<number | null>(null);
+
+  // States for WebLLM
+  const [isWebLLMProcessing, setIsWebLLMProcessing] = useState(false);
+  const [webLLMStatus, setWebLLMStatus] = useState('');
+  const [webLLMElapsedTime, setWebLLMElapsedTime] = useState<number>(0);
+  const webLLMTimerRef = useRef<number | null>(null);
+
+  // States for MediaPipe
+  const [isMediaPipeProcessing, setIsMediaPipeProcessing] = useState(false);
+  const [mediaPipeStatus, setMediaPipeStatus] = useState('');
+  const [mediaPipeElapsedTime, setMediaPipeElapsedTime] = useState<number>(0);
+  const mediaPipeTimerRef = useRef<number | null>(null);
+
   // Fixed URL for audio file
   const fixedAudioUrl = "https://ia600107.us.archive.org/1/items/whizbangv3n30_2503_librivox/whizbangv3n30_00_fawcett.mp3";
   
@@ -85,6 +103,18 @@ function App() {
       if (textGenTimerRef.current !== null) {
         clearInterval(textGenTimerRef.current);
         textGenTimerRef.current = null;
+      }
+      if (kokoroTimerRef.current !== null) {
+        clearInterval(kokoroTimerRef.current);
+        kokoroTimerRef.current = null;
+      }
+      if (webLLMTimerRef.current !== null) {
+        clearInterval(webLLMTimerRef.current);
+        webLLMTimerRef.current = null;
+      }
+      if (mediaPipeTimerRef.current !== null) {
+        clearInterval(mediaPipeTimerRef.current);
+        mediaPipeTimerRef.current = null;
       }
     };
   }, []);
@@ -721,6 +751,198 @@ function App() {
     }
   };
 
+  // Process Kokoro TTS
+  const startKokoroProcessing = async () => {
+    setIsKokoroProcessing(true);
+    setKokoroStatus('Preparing Kokoro TTS...');
+    setKokoroElapsedTime(0);
+    
+    const startTime = Date.now();
+    kokoroTimerRef.current = window.setInterval(() => {
+      setKokoroElapsedTime(Date.now() - startTime);
+    }, 100);
+    
+    const fixedText = "Hello, this is a test of the Kokoro text to speech system.";
+    
+    try {
+      console.log('🎵 Starting Kokoro TTS process');
+      
+      setTimeout(() => {
+        setKokoroStatus('Generating voice...');
+      }, 1000);
+      
+      const formData = new FormData();
+      formData.append('input', fixedText);
+      formData.append('model', 'onnx-community/Kokoro-82M-ONNX');
+      formData.append('dtype', 'q8');
+      formData.append('voice', 'af_heart');
+      
+      const response = await fetch(API_URL + '/text-to-speech', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+      
+      setKokoroStatus("Success, open DevTools to see results");
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      console.error('❌ Error in Kokoro TTS process:', errorMessage);
+      setKokoroStatus(`Error: ${errorMessage}`);
+    } finally {
+      if (kokoroTimerRef.current !== null) {
+        clearInterval(kokoroTimerRef.current);
+        kokoroTimerRef.current = null;
+      }
+      setIsKokoroProcessing(false);
+    }
+  };
+
+  // Process WebLLM Text Generation
+  const startWebLLMProcessing = async () => {
+    setIsWebLLMProcessing(true);
+    setWebLLMStatus('Preparing WebLLM...');
+    setWebLLMElapsedTime(0);
+    
+    const startTime = Date.now();
+    webLLMTimerRef.current = window.setInterval(() => {
+      setWebLLMElapsedTime(Date.now() - startTime);
+    }, 100);
+    
+    try {
+      console.log('🧠 Starting WebLLM process');
+      
+      setTimeout(() => {
+        setWebLLMStatus('Generating response...');
+      }, 1000);
+      
+      const messages = [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "What is the capital of Brazil?" }
+      ];
+      
+      const formData = new FormData();
+      formData.append('input', JSON.stringify(messages));
+      formData.append('model', 'SmolLM2-1.7B-Instruct-q4f32_1-MLC');
+      formData.append('provider', 'webllm');
+      formData.append('stream', 'false');
+      
+      const response = await fetch(API_URL + '/text-generation', {
+        method: 'POST',
+        headers: {
+          'X-Provider': 'webllm'
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      if (response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          console.log('Received chunk:', chunk);
+        }
+      }
+      
+      setWebLLMStatus("Success, open DevTools to see results");
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      console.error('❌ Error in WebLLM process:', errorMessage);
+      setWebLLMStatus(`Error: ${errorMessage}`);
+    } finally {
+      if (webLLMTimerRef.current !== null) {
+        clearInterval(webLLMTimerRef.current);
+        webLLMTimerRef.current = null;
+      }
+      setIsWebLLMProcessing(false);
+    }
+  };
+
+  // Process MediaPipe Text Generation
+  const startMediaPipeProcessing = async () => {
+    setIsMediaPipeProcessing(true);
+    setMediaPipeStatus('Preparing MediaPipe...');
+    setMediaPipeElapsedTime(0);
+    
+    const startTime = Date.now();
+    mediaPipeTimerRef.current = window.setInterval(() => {
+      setMediaPipeElapsedTime(Date.now() - startTime);
+    }, 100);
+    
+    try {
+      console.log('🤖 Starting MediaPipe process');
+      
+      setTimeout(() => {
+        setMediaPipeStatus('Generating response...');
+      }, 1000);
+      
+      const messages = [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "What is the capital of Brazil?" }
+      ];
+      
+      const formData = new FormData();
+      formData.append('input', JSON.stringify(messages));
+      formData.append('model', 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma3-1b-it-int4.task');
+      formData.append('provider', 'mediapipe');
+      formData.append('maxTokens', '1000');
+      formData.append('randomSeed', '101');
+      formData.append('topK', '40');
+      formData.append('temperature', '0.8');
+      formData.append('stream', 'false');
+      
+      const response = await fetch(API_URL + '/text-generation', {
+        method: 'POST',
+        headers: {
+          'X-Provider': 'mediapipe'
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      if (response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          console.log('Received chunk:', chunk);
+        }
+      }
+      
+      setMediaPipeStatus("Success, open DevTools to see results");
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      console.error('❌ Error in MediaPipe process:', errorMessage);
+      setMediaPipeStatus(`Error: ${errorMessage}`);
+    } finally {
+      if (mediaPipeTimerRef.current !== null) {
+        clearInterval(mediaPipeTimerRef.current);
+        mediaPipeTimerRef.current = null;
+      }
+      setIsMediaPipeProcessing(false);
+    }
+  };
+
   return (
     <div className="main-bg central-layout">
       <header className="app-header">
@@ -1079,6 +1301,129 @@ function App() {
                 <span className="check-icon">✓</span>
                 {textGenStatus}
                 <span className="elapsed-time">{formatElapsedTime(textGenElapsedTime)}</span>
+              </div>
+            ) : !running ? (
+              <div className="waiting-message">
+                <span className="info-icon">ℹ️</span>
+                Press START to also be a node
+              </div>
+            ) : null}
+          </div>
+
+          {/* Kokoro TTS Test Card */}
+          <div className="http-test-card">  
+            <div className="http-test-top-line">
+              <div className="http-test-method">KOKORO TTS</div>
+              <span className="http-test-service-name">HTTP REQUEST</span>
+            </div>
+            <div className="http-test-header">
+              <span className="http-test-title">onnx-community/Kokoro-82M-ONNX</span>
+              <div className="card-actions">
+                <button 
+                  className={`play-button ${isKokoroProcessing ? 'processing' : ''}`}
+                  onClick={startKokoroProcessing}
+                  aria-label="Run Kokoro TTS test"
+                  disabled={isKokoroProcessing}
+                >
+                  <span className="play-icon">▶</span>
+                  <span className="tooltip">Run Test</span>
+                </button>
+              </div>
+            </div>
+           
+            {isKokoroProcessing ? (
+              <div className="processing-indicator">
+                <span className="spinner"></span>
+                {kokoroStatus}
+                <span className="elapsed-time">{formatElapsedTime(kokoroElapsedTime)}</span>
+              </div>
+            ) : kokoroStatus?.includes("Success") ? (
+              <div className="success-message">
+                <span className="check-icon">✓</span>
+                {kokoroStatus}
+                <span className="elapsed-time">{formatElapsedTime(kokoroElapsedTime)}</span>
+              </div>
+            ) : !running ? (
+              <div className="waiting-message">
+                <span className="info-icon">ℹ️</span>
+                Press START to also be a node
+              </div>
+            ) : null}
+          </div>
+
+          {/* WebLLM Text Generation Test Card */}
+          <div className="http-test-card">  
+            <div className="http-test-top-line">
+              <div className="http-test-method">WEBLLM</div>
+              <span className="http-test-service-name">HTTP REQUEST</span>
+            </div>
+            <div className="http-test-header">
+              <span className="http-test-title">SmolLM2-1.7B-Instruct-q4f32_1-MLC</span>
+              <div className="card-actions">
+                <button 
+                  className={`play-button ${isWebLLMProcessing ? 'processing' : ''}`}
+                  onClick={startWebLLMProcessing}
+                  aria-label="Run WebLLM test"
+                  disabled={isWebLLMProcessing}
+                >
+                  <span className="play-icon">▶</span>
+                  <span className="tooltip">Run Test</span>
+                </button>
+              </div>
+            </div>
+           
+            {isWebLLMProcessing ? (
+              <div className="processing-indicator">
+                <span className="spinner"></span>
+                {webLLMStatus}
+                <span className="elapsed-time">{formatElapsedTime(webLLMElapsedTime)}</span>
+              </div>
+            ) : webLLMStatus?.includes("Success") ? (
+              <div className="success-message">
+                <span className="check-icon">✓</span>
+                {webLLMStatus}
+                <span className="elapsed-time">{formatElapsedTime(webLLMElapsedTime)}</span>
+              </div>
+            ) : !running ? (
+              <div className="waiting-message">
+                <span className="info-icon">ℹ️</span>
+                Press START to also be a node
+              </div>
+            ) : null}
+          </div>
+
+          {/* MediaPipe Text Generation Test Card */}
+          <div className="http-test-card">  
+            <div className="http-test-top-line">
+              <div className="http-test-method">MEDIAPIPE</div>
+              <span className="http-test-service-name">HTTP REQUEST</span>
+            </div>
+            <div className="http-test-header">
+              <span className="http-test-title">gemma3-1b-it-int4</span>
+              <div className="card-actions">
+                <button 
+                  className={`play-button ${isMediaPipeProcessing ? 'processing' : ''}`}
+                  onClick={startMediaPipeProcessing}
+                  aria-label="Run MediaPipe test"
+                  disabled={isMediaPipeProcessing}
+                >
+                  <span className="play-icon">▶</span>
+                  <span className="tooltip">Run Test</span>
+                </button>
+              </div>
+            </div>
+           
+            {isMediaPipeProcessing ? (
+              <div className="processing-indicator">
+                <span className="spinner"></span>
+                {mediaPipeStatus}
+                <span className="elapsed-time">{formatElapsedTime(mediaPipeElapsedTime)}</span>
+              </div>
+            ) : mediaPipeStatus?.includes("Success") ? (
+              <div className="success-message">
+                <span className="check-icon">✓</span>
+                {mediaPipeStatus}
+                <span className="elapsed-time">{formatElapsedTime(mediaPipeElapsedTime)}</span>
               </div>
             ) : !running ? (
               <div className="waiting-message">
