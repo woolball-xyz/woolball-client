@@ -160,6 +160,7 @@
     <div class="tab" data-tab="translation">Translation</div>
     <div class="tab" data-tab="text-generation">Text Generation</div>
     <div class="tab" data-tab="webllm-text-generation">WebLLM Text Generation</div>
+    <div class="tab" data-tab="mediapipe-text-generation">MediaPipe Text Generation</div>
   </div>
   
   <div class="tab-content active" id="asr-content">
@@ -344,6 +345,43 @@
       </div>
       <button id="webllmGenBtn">Generate with WebLLM</button>
       <p class="status" id="webllmGenStatus">Enter a prompt to generate text using WebLLM.</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="mediapipe-text-generation-content">
+    <div class="card">
+      <h2>MediaPipe Text Generation</h2>
+      <div class="input-group">
+        <label for="mediapipeSystemPromptInput">System Prompt</label>
+        <textarea id="mediapipeSystemPromptInput">You are a helpful assistant.</textarea>
+        
+        <label for="mediapipeUserPromptInput">User Prompt</label>
+        <textarea id="mediapipeUserPromptInput" placeholder="Enter your prompt">What is the capital of the Brazil?</textarea>
+        
+        <label for="mediapipeModelInput">Model</label>
+        <input type="text" id="mediapipeModelInput" value="https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma3-1b-it-int4.task">
+
+        <label for="mediapipeMaxTokensInput">Max Tokens (optional)</label>
+        <input type="number" id="mediapipeMaxTokensInput">
+
+        <label for="mediapipeRandomSeedInput">Random Seed (optional)</label>
+        <input type="number" id="mediapipeRandomSeedInput">
+
+        <label for="mediapipeTopKInput">Top K (optional)</label>
+        <input type="number" id="mediapipeTopKInput">
+
+        <label for="mediapipeTemperatureInput">Temperature (optional)</label>
+        <input type="number" id="mediapipeTemperatureInput" step="0.1">
+        
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="mediapipeStreamCheckbox">
+            Enable streaming
+          </label>
+        </div>
+      </div>
+      <button id="mediapipeGenBtn">Generate with MediaPipe</button>
+      <p class="status" id="mediapipeGenStatus">Enter a prompt to generate text using MediaPipe.</p>
     </div>
   </div>
   
@@ -638,50 +676,20 @@
                       <pre>${audioItem.audio.substring(0, 50)}...</pre>
                     </details>
                   `;
-                  audioContainer.appendChild(audioInfoDiv);
-                  
-                  // Update the duration when loaded
-                  if (i === 0) {
-                    ttsAudio.onloadedmetadata = function() {
-                      document.getElementById(`audioDuration-${i}`).textContent = `${ttsAudio.duration.toFixed(2)} segundos`;
-                    };
-                  }
-                } catch (audioError) {
-                  console.error(`Error processing audio item ${i+1}:`, audioError);
-                  const errorInfo = document.createElement('div');
-                  errorInfo.className = 'error-info';
-                  errorInfo.innerHTML = `
-                    <h3>Error in Audio Item ${i+1}</h3>
-                    <p>Error: ${audioError.message}</p>
-                  `;
-                  audioContainer.appendChild(errorInfo);
+                } catch (error) {
+                  console.error('Error processing audio item:', error);
                 }
-              } else {
-                console.warn(`Audio item ${i+1} has no audio property:`, audioItem);
               }
             }
-            
-            // Add the audio container to the result div
-            resultDiv.appendChild(audioContainer);
-          } else if (result.error) {
-            document.getElementById('result').textContent = `Error: ${result.error}`;
-          } else {
-            document.getElementById('result').textContent = 'No audio data received';
           }
         }
       } catch (error) {
         ttsStatus.textContent = `Error: ${error.message}`;
-        document.getElementById('result').textContent = `Error: ${error.message}`;
-        console.error('Error generating speech:', error);
+        console.error('Error processing text to speech:', error);
       } finally {
         ttsBtn.disabled = false;
       }
     });
-    
-    // Initialize visibility of voice options
-    if (ttsModelInput.value === 'onnx-community/Kokoro-82M-ONNX') {
-      kokoroVoiceContainer.classList.remove('hidden');
-    }
     
     // Translation
     const translationInput = document.getElementById('translationInput');
@@ -706,22 +714,16 @@
         const response = await httpClient.processTranslation(translationInput.value, {
           model: translationModelInput.value,
           dtype: translationDtypeInput.value,
-          srcLang: source_lang.value,
+          source_lang: source_lang.value,
           tgtLang: tgtLangInput.value
         });
 
         const result = await response.json();
         translationStatus.textContent = 'Success!';
-        
-        if (result.translatedText) {
-          document.getElementById('result').textContent = result.translatedText;
-        } else if (result.error) {
-          document.getElementById('result').textContent = `Error: ${result.error}`;
-        }
+        document.getElementById('result').textContent = JSON.stringify(result, null, 2);
       } catch (error) {
         translationStatus.textContent = `Error: ${error.message}`;
-        document.getElementById('result').textContent = `Error: ${error.message}`;
-        console.error('Error translating text:', error);
+        console.error('Error processing translation:', error);
       } finally {
         translationBtn.disabled = false;
       }
@@ -738,8 +740,8 @@
     const doSampleCheckbox = document.getElementById('doSampleCheckbox');
     
     textGenBtn.addEventListener('click', async function() {
-      if (!userPromptInput.value.trim()) {
-        textGenStatus.textContent = 'Please enter a prompt.';
+      if (!systemPromptInput.value.trim() || !userPromptInput.value.trim()) {
+        textGenStatus.textContent = 'Please enter both system and user prompts.';
         return;
       }
       
@@ -748,48 +750,27 @@
         textGenStatus.textContent = 'Generating text...';
         document.getElementById('result').textContent = 'Processing...';
 
-        // Create message array
-        const messages = [
-          { role: "system", content: systemPromptInput.value },
-          { role: "user", content: userPromptInput.value }
-        ];
-
-        const response = await httpClient.processTextGeneration(messages, {
+        const response = await httpClient.processTextGeneration([
+          { role: 'system', content: systemPromptInput.value },
+          { role: 'user', content: userPromptInput.value }
+        ], {
           model: textGenModelInput.value,
           dtype: textGenDtypeInput.value,
-          max_new_tokens: parseInt(maxTokensInput.value),
-          do_sample: doSampleCheckbox.checked
+          maxTokens: parseInt(maxTokensInput.value),
+          doSample: doSampleCheckbox.checked
         });
 
         const result = await response.json();
         textGenStatus.textContent = 'Success!';
-        
-        if (result.generatedText) {
-          document.getElementById('result').textContent = result.generatedText;
-        } else if (result.error) {
-          document.getElementById('result').textContent = `Error: ${result.error}`;
-        }
+        document.getElementById('result').textContent = JSON.stringify(result, null, 2);
       } catch (error) {
         textGenStatus.textContent = `Error: ${error.message}`;
-        document.getElementById('result').textContent = `Error: ${error.message}`;
-        console.error('Error generating text:', error);
+        console.error('Error processing text generation:', error);
       } finally {
         textGenBtn.disabled = false;
       }
     });
-
-    // Load the default audio file
-    async function loadDefaultAudio() {
-      const file = await httpClient.loadDefaultAudio();
-      if (file) {
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
-        audioFileInput.files = dataTransfer.files;
-        asrBtn.disabled = false;
-        asrStatus.textContent = 'File input.wav loaded automatically';
-      }
-    }
-
+    
     // WebLLM Text Generation
     const webllmSystemPromptInput = document.getElementById('webllmSystemPromptInput');
     const webllmUserPromptInput = document.getElementById('webllmUserPromptInput');
@@ -799,65 +780,226 @@
     const webllmStreamCheckbox = document.getElementById('webllmStreamCheckbox');
     
     webllmGenBtn.addEventListener('click', async function() {
-      if (!webllmUserPromptInput.value.trim()) {
-        webllmGenStatus.textContent = 'Please enter a prompt.';
+      if (!webllmSystemPromptInput.value.trim() || !webllmUserPromptInput.value.trim()) {
+        webllmGenStatus.textContent = 'Please enter both system and user prompts.';
         return;
       }
       
       try {
         webllmGenBtn.disabled = true;
-        webllmGenStatus.textContent = 'Generating text with WebLLM...';
+        webllmGenStatus.textContent = 'Generating text using WebLLM...';
         document.getElementById('result').textContent = 'Processing...';
 
-        // Create message array - include system and user messages
-        const messages = [
-          { role: "system", content: webllmSystemPromptInput.value },
-          { role: "user", content: webllmUserPromptInput.value }
-        ];
-
-        // Keep it simple - just use boolean for stream
-        const stream = webllmStreamCheckbox.checked;
-
-        // Using processTextGeneration with provider='webllm'
-        const response = await httpClient.processTextGeneration(messages, {
+        const response = await httpClient.processTextGeneration([
+          { role: 'system', content: webllmSystemPromptInput.value },
+          { role: 'user', content: webllmUserPromptInput.value }
+        ], {
           model: webllmModelInput.value,
-          stream: stream,
+          stream: webllmStreamCheckbox.checked,
           provider: 'webllm'
         });
 
-        if (stream) {
+        if (webllmStreamCheckbox.checked) {
           // Handle streaming response
-          webllmGenStatus.textContent = 'Streaming results...';
+          webllmGenStatus.textContent = 'Streaming text chunks...';
+          
+          // Clear previous results
+          const resultDiv = document.getElementById('result');
+          resultDiv.textContent = '';
+          
+          // Create container for text chunks
+          const textContainer = document.createElement('div');
+          textContainer.className = 'text-container';
+          resultDiv.appendChild(textContainer);
+          
+          // Create info panel
+          const infoPanel = document.createElement('div');
+          infoPanel.className = 'info-panel';
+          infoPanel.innerHTML = '<h3>Text Chunks</h3><p>Receiving streaming text chunks...</p>';
+          textContainer.appendChild(infoPanel);
+          
+          let chunkCount = 0;
+          let accumulatedChunks = "";
+          
+          await httpClient.handleStreamResponse(response, (chunk) => {
+            // Accumulate chunks until we have complete JSON
+            accumulatedChunks += chunk;
+            
+            try {
+              // Try to validate if we have complete JSON object(s)
+              // We might receive multiple complete objects in one chunk
+              
+              // Process all complete JSON objects in the accumulated string
+              while (accumulatedChunks.length > 0) {
+                // Look for a complete JSON array object
+                let startPos = accumulatedChunks.indexOf('[');
+                if (startPos === -1) break;
+                
+                // Try to find the matching closing bracket
+                let depth = 0;
+                let endPos = -1;
+                
+                for (let i = startPos; i < accumulatedChunks.length; i++) {
+                  if (accumulatedChunks[i] === '[') depth++;
+                  else if (accumulatedChunks[i] === ']') {
+                    depth--;
+                    if (depth === 0) {
+                      endPos = i;
+                      break;
+                    }
+                  }
+                }
+                
+                // If we didn't find a complete JSON object, wait for more chunks
+                if (endPos === -1) break;
+                
+                // Extract the complete JSON string
+                const jsonStr = accumulatedChunks.substring(startPos, endPos + 1);
+                // Remove the processed part from the accumulated string
+                accumulatedChunks = accumulatedChunks.substring(endPos + 1);
+                
+                // Parse the complete JSON
+                const items = JSON.parse(jsonStr);
+                chunkCount++;
+                
+                // Process each text item in the array
+                if (Array.isArray(items)) {
+                  items.forEach(item => {
+                    if (item.text) {
+                      // Process this text chunk
+                      const textChunk = item.text;
+                      
+                      // Create text element for this chunk
+                      const textElement = document.createElement('div');
+                      textElement.className = 'text-chunk';
+                      textElement.textContent = textChunk;
+                      
+                      // Add to container
+                      const textContainer = document.getElementById('result');
+                      textContainer.appendChild(textElement);
+                      
+                      // Update info panel
+                      const infoPanel = document.querySelector('.info-panel');
+                      infoPanel.innerHTML = `<h3>Text Chunks</h3><p>Received ${chunkCount} chunks so far...</p>`;
+                    }
+                  });
+                }
+              }
+            } catch (error) {
+              // If we can't parse yet, just wait for more chunks
+              console.log('Waiting for more chunks to complete JSON:', error.message);
+            }
+          });
+          
+          webllmGenStatus.textContent = `Streaming completed! Received ${chunkCount} chunks.`;
+        } else {
+          // Handle regular response
+          const result = await response.json();
+          webllmGenStatus.textContent = 'Success!';
+          
+          // Clear previous text elements
+          const resultDiv = document.getElementById('result');
+          resultDiv.textContent = '';
+          
+          // Check if result is an array (new format) or single object (old format)
+          const textItems = Array.isArray(result) ? result : [result];
+          
+          if (textItems.length > 0) {
+            console.log(`Received ${textItems.length} text item(s)`);
+            
+            // Create container for multiple text elements if needed
+            const textContainer = document.createElement('div');
+            textContainer.className = 'text-container';
+            
+            // Process each text item
+            for (let i = 0; i < textItems.length; i++) {
+              const textItem = textItems[i];
+              
+              if (textItem.text) {
+                try {
+                  console.log(`Processing text item ${i+1}/${textItems.length}`);
+                  
+                  // Create text element for this item
+                  const textElement = document.createElement('div');
+                  textElement.className = 'text-chunk';
+                  textElement.textContent = textItem.text;
+                  
+                  // Add to container
+                  textContainer.appendChild(textElement);
+                } catch (error) {
+                  console.error('Error processing text item:', error);
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        webllmGenStatus.textContent = `Error: ${error.message}`;
+        console.error('Error processing text generation using WebLLM:', error);
+      } finally {
+        webllmGenBtn.disabled = false;
+      }
+    });
+    
+    // MediaPipe Text Generation
+    const mediapipeSystemPromptInput = document.getElementById('mediapipeSystemPromptInput');
+    const mediapipeUserPromptInput = document.getElementById('mediapipeUserPromptInput');
+    const mediapipeGenBtn = document.getElementById('mediapipeGenBtn');
+    const mediapipeGenStatus = document.getElementById('mediapipeGenStatus');
+    const mediapipeModelInput = document.getElementById('mediapipeModelInput');
+    const mediapipeMaxTokensInput = document.getElementById('mediapipeMaxTokensInput');
+    const mediapipeRandomSeedInput = document.getElementById('mediapipeRandomSeedInput');
+    const mediapipeTopKInput = document.getElementById('mediapipeTopKInput');
+    const mediapipeTemperatureInput = document.getElementById('mediapipeTemperatureInput');
+    const mediapipeStreamCheckbox = document.getElementById('mediapipeStreamCheckbox');
+    
+    mediapipeGenBtn.addEventListener('click', async function() {
+      if (!mediapipeSystemPromptInput.value.trim() || !mediapipeUserPromptInput.value.trim()) {
+        mediapipeGenStatus.textContent = 'Please enter both system and user prompts.';
+        return;
+      }
+      
+      try {
+        mediapipeGenBtn.disabled = true;
+        mediapipeGenStatus.textContent = 'Generating text using MediaPipe...';
+        document.getElementById('result').textContent = 'Processing...';
+
+        const messages = [
+          { role: "system", content: mediapipeSystemPromptInput.value },
+          { role: "user", content: mediapipeUserPromptInput.value }
+        ];
+
+        const stream = mediapipeStreamCheckbox.checked;
+
+        const requestOptions = {
+          model: mediapipeModelInput.value,
+          stream: stream,
+          provider: 'mediapipe'
+        };
+
+        // Only add parameters if they have values
+        if (mediapipeMaxTokensInput.value) requestOptions.maxTokens = parseInt(mediapipeMaxTokensInput.value);
+        if (mediapipeRandomSeedInput.value) requestOptions.randomSeed = parseInt(mediapipeRandomSeedInput.value);
+        if (mediapipeTopKInput.value) requestOptions.topK = parseInt(mediapipeTopKInput.value);
+        if (mediapipeTemperatureInput.value) requestOptions.temperature = parseFloat(mediapipeTemperatureInput.value);
+
+        const response = await httpClient.processTextGeneration(messages, requestOptions);
+
+        if (stream) {
+          mediapipeGenStatus.textContent = 'Streaming results...';
           document.getElementById('result').textContent = '';
           
           let resultText = '';
           
           await httpClient.handleStreamResponse(response, (chunk) => {
-            try {
-              // Try to parse JSON if it's a JSON chunk
-              const jsonData = JSON.parse(chunk);
-              if (jsonData.choices && jsonData.choices[0] && jsonData.choices[0].delta) {
-                const content = jsonData.choices[0].delta.content || '';
-                resultText += content;
-                document.getElementById('result').textContent = resultText;
-              }
-            } catch (e) {
-              // If it's not JSON, just append the raw text
-              document.getElementById('result').textContent += chunk;
-            }
+            resultText += chunk;
+            document.getElementById('result').textContent = resultText;
           });
           
-          // Get final message after streaming is complete
-          const finalResult = await response.json().catch(e => ({}));
-          if (finalResult.fullMessage) {
-            document.getElementById('result').textContent = finalResult.fullMessage;
-          }
-          
-          webllmGenStatus.textContent = 'Generation completed!';
+          mediapipeGenStatus.textContent = 'Generation completed!';
         } else {
-          // Regular response handling
           const result = await response.json();
-          webllmGenStatus.textContent = 'Success!';
+          mediapipeGenStatus.textContent = 'Success!';
           
           if (result.generatedText) {
             document.getElementById('result').textContent = result.generatedText;
@@ -866,17 +1008,11 @@
           }
         }
       } catch (error) {
-        webllmGenStatus.textContent = `Error: ${error.message}`;
-        document.getElementById('result').textContent = `Error: ${error.message}`;
-        console.error('Error generating text with WebLLM:', error);
+        mediapipeGenStatus.textContent = `Error: ${error.message}`;
+        console.error('Error processing text generation using MediaPipe:', error);
       } finally {
-        webllmGenBtn.disabled = false;
+        mediapipeGenBtn.disabled = false;
       }
-    });
-
-    // Initialize the application
-    document.addEventListener('DOMContentLoaded', function() {
-      loadDefaultAudio();
     });
   </script>
 </body>
