@@ -1,7 +1,7 @@
-import { bufferToBase64 } from '../media';
+import { bufferToBase64, blobToArrayBuffer } from '../media';
 import { TaskData, TaskResult } from './types';
 
-const KOKORO_MODEL_ID = 'onnx-community/Kokoro-82M-ONNX';
+const KOKORO_MODEL_ID = ['onnx-community/Kokoro-82M-ONNX', 'onnx-community/Kokoro-82M-v1.0-ONNX'];
 const SUPPORTED_MODEL_PREFIXES = ['xenova/mms-tts-', 'onnx-community/kokoro'];
 
 export async function tts(data: TaskData): Promise<TaskResult> {
@@ -11,7 +11,7 @@ export async function tts(data: TaskData): Promise<TaskResult> {
   
   try {
     // Check supported models
-    const isKokoro = model === KOKORO_MODEL_ID;
+    const isKokoro = KOKORO_MODEL_ID.includes(model);
     const isSupportedModel = SUPPORTED_MODEL_PREFIXES.some(prefix => 
       model.toLowerCase().includes(prefix.toLowerCase())
     );
@@ -55,18 +55,14 @@ async function processTransformersTTS(
   console.log('processTransformersTTS started with:', { text, model, dtype });
   
   try {
-    console.log('Importing pipeline from @huggingface/transformers');
     const { pipeline } = await import('@huggingface/transformers');
     
-    console.log('Creating text-to-speech pipeline with model:', model);
     const pipe = await pipeline('text-to-speech', model, {
       dtype: dtype as any,
       device: 'wasm',
     });
     
-    console.log('Pipeline created, processing text');
     const result = await pipe(text, options);
-    console.log('Text processed successfully, encoding audio');
     
     const wavEncoder = await import('wav-encoder');
     const wavBuffer = await wavEncoder.encode({
@@ -75,7 +71,6 @@ async function processTransformersTTS(
     });
     
     await pipe.dispose();
-    console.log('Audio encoded and pipeline released');
     
     return {
       audio: bufferToBase64(wavBuffer)
@@ -105,26 +100,25 @@ async function processKokoroTTS(
   console.log('processKokoroTTS started with:', { text, model, dtype, options });
   
   try {
-    console.log('Importing KokoroTTS');
     const { KokoroTTS } = await import('kokoro-js');
     
-    console.log('Loading Kokoro model:', model);
     const tts = await KokoroTTS.from_pretrained(
       model,
       { dtype: dtype || 'q8' }
     );
     
-    console.log('Generating audio with voice:', options.voice);
     const audio = await tts.generate(text, {
       voice: options.voice
     });
     
     tts.dispose?.();
-    console.log('Audio generated and model released');
-    console.log('audio.toBlob()', audio.toBlob());
+    
+    const audioBlob = audio.toBlob();
+    const arrayBuffer = await blobToArrayBuffer(audioBlob);
+    const base64Audio = bufferToBase64(arrayBuffer);
     
     return {
-      audio: bufferToBase64(audio.toBlob())
+      audio: base64Audio
     };
   } catch (error) {
     console.error('Error in processKokoroTTS:', error);

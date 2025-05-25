@@ -23,6 +23,26 @@ export function processAudio(data: string): Float64Array {
 }
 
 /**
+ * Converte um Blob para ArrayBuffer
+ * @param blob Blob para converter
+ * @returns Promise<ArrayBuffer> ArrayBuffer resultante
+ */
+export async function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result instanceof ArrayBuffer) {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to convert blob to ArrayBuffer'));
+      }
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+/**
  * Converte um ArrayBuffer para string base64
  * @param buffer ArrayBuffer para converter
  * @returns String base64

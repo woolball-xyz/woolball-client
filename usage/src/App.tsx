@@ -3,64 +3,169 @@ import { WebSocketManager } from './WebSocketManager';
 import './App.css';
 import { WEBSOCKET_URL, API_URL } from './utils/env';
 
+// Define specific types for each task category
+interface SpeechRecognitionTask {
+  isProcessing: boolean;
+  status: string;
+  elapsedTime: number;
+  model: string;
+  dtype: string;
+  language: string;
+  includeTimestamps: boolean;
+  enableStreaming: boolean;
+}
+
+interface TextToSpeechTask {
+  isProcessing: boolean;
+  status: string;
+  elapsedTime: number;
+  model: string;
+  dtype: string;
+  voice: string;
+  enableStreaming: boolean;
+}
+
+interface TranslationTask {
+  isProcessing: boolean;
+  status: string;
+  elapsedTime: number;
+  model: string;
+  dtype: string;
+  srcLang: string;
+  tgtLang: string;
+}
+
+interface TextGenerationTask {
+  isProcessing: boolean;
+  status: string;
+  elapsedTime: number;
+  model: string;
+  dtype: string;
+  provider: string;
+  maxTokens: number;
+  doSample: boolean;
+  enableStreaming: boolean;
+}
+
+interface TaskStates {
+  speechRecognition: SpeechRecognitionTask;
+  textToSpeech: TextToSpeechTask;
+  translation: TranslationTask;
+  textGeneration: TextGenerationTask;
+}
+
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [connection, setConnection] = useState<'connected' | 'disconnected' | 'loading' | 'error'>('disconnected');
   const [running, setRunning] = useState(false);
   const wsManagerRef = useRef<WebSocketManager | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStatus, setProcessingStatus] = useState('');
-  const [fileError, setFileError] = useState<string>('');
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [nodeCount, setNodeCount] = useState<number>(1);
   const [repoStars, setRepoStars] = useState<number | null>(null);
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const timerIntervalRef = useRef<number | null>(null);
 
-  // States for new AI tasks
-  const [isTtsProcessing, setIsTtsProcessing] = useState(false);
-  const [ttsStatus, setTtsStatus] = useState('');
-  const [ttsElapsedTime, setTtsElapsedTime] = useState<number>(0);
-  const ttsTimerRef = useRef<number | null>(null);
-  
-  const [isTranslationProcessing, setIsTranslationProcessing] = useState(false);
-  const [translationStatus, setTranslationStatus] = useState('');
-  const [translationElapsedTime, setTranslationElapsedTime] = useState<number>(0);
-  const translationTimerRef = useRef<number | null>(null);
-  
-  const [isTextGenProcessing, setIsTextGenProcessing] = useState(false);
-  const [textGenStatus, setTextGenStatus] = useState('');
-  const [textGenElapsedTime, setTextGenElapsedTime] = useState<number>(0);
-  const textGenTimerRef = useRef<number | null>(null);
+  // Task categories and their processing states
+  const [taskStates, setTaskStates] = useState<TaskStates>({
+    speechRecognition: {
+      isProcessing: false,
+      status: '',
+      elapsedTime: 0,
+      model: 'onnx-community/whisper-small',
+      dtype: 'q4',
+      language: 'en',
+      includeTimestamps: false,
+      enableStreaming: true
+    },
+    textToSpeech: {
+      isProcessing: false,
+      status: '',
+      elapsedTime: 0,
+      model: 'Xenova/mms-tts-eng',
+      dtype: 'q8',
+      voice: 'af_heart',
+      enableStreaming: false
+    },
+    translation: {
+      isProcessing: false,
+      status: '',
+      elapsedTime: 0,
+      model: 'Xenova/nllb-200-distilled-600M',
+      dtype: 'q8',
+      srcLang: 'eng_Latn',
+      tgtLang: 'por_Latn'
+    },
+    textGeneration: {
+      isProcessing: false,
+      status: '',
+      elapsedTime: 0,
+      model: 'HuggingFaceTB/SmolLM2-135M-Instruct',
+      dtype: 'fp16',
+      provider: 'transformers',
+      maxTokens: 250,
+      doSample: false,
+      enableStreaming: false
+    }
+  });
 
-  // States for Kokoro TTS
-  const [isKokoroProcessing, setIsKokoroProcessing] = useState(false);
-  const [kokoroStatus, setKokoroStatus] = useState('');
-  const [kokoroElapsedTime, setKokoroElapsedTime] = useState<number>(0);
-  const kokoroTimerRef = useRef<number | null>(null);
+  // Timer references for each task
+  const timerRefs = useRef({
+    speechRecognition: null as number | null,
+    textToSpeech: null as number | null,
+    translation: null as number | null,
+    textGeneration: null as number | null
+  });
 
-  // States for WebLLM
-  const [isWebLLMProcessing, setIsWebLLMProcessing] = useState(false);
-  const [webLLMStatus, setWebLLMStatus] = useState('');
-  const [webLLMElapsedTime, setWebLLMElapsedTime] = useState<number>(0);
-  const webLLMTimerRef = useRef<number | null>(null);
-
-  // States for MediaPipe
-  const [isMediaPipeProcessing, setIsMediaPipeProcessing] = useState(false);
-  const [mediaPipeStatus, setMediaPipeStatus] = useState('');
-  const [mediaPipeElapsedTime, setMediaPipeElapsedTime] = useState<number>(0);
-  const mediaPipeTimerRef = useRef<number | null>(null);
+  // Model options for each task category
+  const modelOptions = {
+    speechRecognition: [
+      { value: 'onnx-community/whisper-small', label: 'Whisper Small' },
+      { value: 'onnx-community/whisper-base', label: 'Whisper Base' },
+      { value: 'onnx-community/whisper-large-v3-turbo_timestamped', label: 'Whisper Large V3 Turbo' }
+    ],
+    textToSpeech: [
+      // MMS Models (Multilingual)
+      { value: 'Xenova/mms-tts-eng', label: 'English (MMS)' },
+      { value: 'Xenova/mms-tts-spa', label: 'Spanish (MMS)' },
+      { value: 'Xenova/mms-tts-por', label: 'Portuguese (MMS)' },
+      { value: 'Xenova/mms-tts-fra', label: 'French (MMS)' },
+      { value: 'Xenova/mms-tts-deu', label: 'German (MMS)' },
+      { value: 'Xenova/mms-tts-rus', label: 'Russian (MMS)' },
+      { value: 'Xenova/mms-tts-ara', label: 'Arabic (MMS)' },
+      { value: 'Xenova/mms-tts-hin', label: 'Hindi (MMS)' },
+      { value: 'Xenova/mms-tts-kor', label: 'Korean (MMS)' },
+      { value: 'Xenova/mms-tts-vie', label: 'Vietnamese (MMS)' },
+      { value: 'Xenova/mms-tts-ron', label: 'Romanian (MMS)' },
+      { value: 'Xenova/mms-tts-yor', label: 'Yoruba (MMS)' },
+      // Kokoro Models (High Quality)
+      { value: 'onnx-community/Kokoro-82M-ONNX', label: 'Kokoro TTS' },
+      { value: 'onnx-community/Kokoro-82M-v1.0-ONNX', label: 'Kokoro TTS v1.0' }
+    ],
+    translation: [
+      { value: 'Xenova/nllb-200-distilled-600M', label: 'NLLB-200 Distilled 600M' }
+    ],
+    textGeneration: [
+      // Transformers.js Models
+      { value: 'HuggingFaceTB/SmolLM2-135M-Instruct', label: 'SmolLM2 135M (Transformers)', provider: 'transformers' },
+      { value: 'HuggingFaceTB/SmolLM2-360M-Instruct', label: 'SmolLM2 360M (Transformers)', provider: 'transformers' },
+      { value: 'Qwen/Qwen2.5-0.5B-Instruct', label: 'Qwen2.5 0.5B (Transformers)', provider: 'transformers' },
+      { value: 'Qwen/Qwen2.5-Coder-0.5B-Instruct', label: 'Qwen2.5 Coder 0.5B (Transformers)', provider: 'transformers' },
+      // WebLLM Models
+      { value: 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC', label: 'DeepSeek R1 Qwen 7B (WebLLM)', provider: 'webllm' },
+      { value: 'DeepSeek-R1-Distill-Llama-8B-q4f16_1-MLC', label: 'DeepSeek R1 Llama 8B (WebLLM)', provider: 'webllm' },
+      { value: 'SmolLM2-1.7B-Instruct-q4f32_1-MLC', label: 'SmolLM2 1.7B (WebLLM)', provider: 'webllm' },
+      { value: 'Llama-3.1-8B-Instruct-q4f32_1-MLC', label: 'Llama 3.1 8B (WebLLM)', provider: 'webllm' },
+      { value: 'Qwen3-8B-q4f32_1-MLC', label: 'Qwen3 8B (WebLLM)', provider: 'webllm' },
+      // MediaPipe Models
+      { value: 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma2-2b-it-cpu-int8.task', label: 'Gemma2 2B CPU (MediaPipe)', provider: 'mediapipe' },
+      { value: 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma2-2b-it-gpu-int8.bin', label: 'Gemma2 2B GPU (MediaPipe)', provider: 'mediapipe' },
+      { value: 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma3-1b-it-int4.task', label: 'Gemma3 1B (MediaPipe)', provider: 'mediapipe' },
+      { value: 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma3-4b-it-int4-web.task', label: 'Gemma3 4B Web (MediaPipe)', provider: 'mediapipe' }
+    ]
+  };
 
   // Fixed URL for audio file
   const fixedAudioUrl = "https://ia600107.us.archive.org/1/items/whizbangv3n30_2503_librivox/whizbangv3n30_00_fawcett.mp3";
-  
-  // State for storing text blocks with colors
-  const [textBlocks, setTextBlocks] = useState<Array<{text: string, color: string}>>([]);
-
-  // Criar uma ref para o botão
-  const testButtonRef = useRef<HTMLButtonElement>(null);
   
   // Fetch GitHub repository stars count
   useEffect(() => {
@@ -77,65 +182,24 @@ function App() {
     }
     
     fetchRepoStars();
-    
-    // Set up an interval to refresh the star count periodically (every 5 minutes)
     const interval = setInterval(fetchRepoStars, 5 * 60 * 1000);
-    
-    // Clean up interval on component unmount
     return () => clearInterval(interval);
   }, []);
 
-  // Clean up timer when component unmounts
+  // Clean up timers when component unmounts
   useEffect(() => {
     return () => {
-      if (timerIntervalRef.current !== null) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-      if (ttsTimerRef.current !== null) {
-        clearInterval(ttsTimerRef.current);
-        ttsTimerRef.current = null;
-      }
-      if (translationTimerRef.current !== null) {
-        clearInterval(translationTimerRef.current);
-        translationTimerRef.current = null;
-      }
-      if (textGenTimerRef.current !== null) {
-        clearInterval(textGenTimerRef.current);
-        textGenTimerRef.current = null;
-      }
-      if (kokoroTimerRef.current !== null) {
-        clearInterval(kokoroTimerRef.current);
-        kokoroTimerRef.current = null;
-      }
-      if (webLLMTimerRef.current !== null) {
-        clearInterval(webLLMTimerRef.current);
-        webLLMTimerRef.current = null;
-      }
-      if (mediaPipeTimerRef.current !== null) {
-        clearInterval(mediaPipeTimerRef.current);
-        mediaPipeTimerRef.current = null;
-      }
+      Object.values(timerRefs.current).forEach(timerRef => {
+        if (timerRef !== null) {
+          clearInterval(timerRef);
+        }
+      });
     };
   }, []);
-
-  // Forcefully disable the button if there's no file
-  useEffect(() => {
-    if (testButtonRef.current) {
-      if (!audioFile) {
-        testButtonRef.current.setAttribute('disabled', 'true');
-        testButtonRef.current.classList.add('disabled');
-      } else if (!isProcessing) {
-        testButtonRef.current.removeAttribute('disabled');
-        testButtonRef.current.classList.remove('disabled');
-      }
-    }
-  }, [audioFile, isProcessing]);
 
   // Function to pre-load the audio file
   const loadDefaultAudio = async () => {
     try {
-      // Try to load a default audio file from the public folder
       const response = await fetch('/input.wav');
       if (response.ok) {
         const blob = await response.blob();
@@ -151,7 +215,6 @@ function App() {
   };
 
   useEffect(() => {
-    // Try to load the default audio file on initialization
     loadDefaultAudio();
   }, []);
 
@@ -161,7 +224,6 @@ function App() {
       console.log(`🚀 Starting Woolball with ${nodeCount} node(s)`);
       console.log(`🔌 WebSocket URL from env: ${WEBSOCKET_URL}`);
       wsManagerRef.current = new WebSocketManager(containerRef.current, setConnection, nodeCount);
-      
       console.log(`📊 Node count: ${nodeCount}`);
     }
     if (!running && wsManagerRef.current) {
@@ -177,12 +239,6 @@ function App() {
     };
   }, [running, nodeCount]);
 
-  // Adding a useEffect to monitor the audioFile state
-  useEffect(() => {
-    console.log("Audio file state changed:", audioFile ? audioFile.name : "null");
-  }, [audioFile]);
-
-  // Helper function to properly stop and clean up the WebSocketManager
   const stopWebSocketManager = () => {
     if (wsManagerRef.current) {
       console.log('📴 Stopping Woolball service');
@@ -196,171 +252,6 @@ function App() {
     
     setConnection('disconnected');
   };
-
-  const startProcessing = async () => {
-    // Reset estados
-    setIsProcessing(true);
-    setFileError('');
-    setProcessingStatus('Distributing tasks...');
-    setElapsedTime(0);
-    
-    // Start the timer
-    const startTime = Date.now();
-    timerIntervalRef.current = window.setInterval(() => {
-      setElapsedTime(Date.now() - startTime);
-    }, 100);
-    
-    // Inicia o fetch imediatamente em paralelo
-    const fetchPromise = fetch(fixedAudioUrl);
-    
-    // Atualizações de estado em paralelo com o fetch
-    console.log('Step 1: Distributing tasks...');
-    
-    // Atualiza para o segundo estado após um pequeno delay
-    setTimeout(() => {
-      console.log('Step 2: Processing...');
-      setProcessingStatus('Processing...');
-    }, 2000);
-    
-    // Continua com o processamento sem esperar pelos timeouts
-    try {
-      console.log(`🎤 Fetching audio from fixed URL: ${fixedAudioUrl}`);
-      
-      // Aguarda apenas o resultado do fetch que já foi iniciado
-      const response = await fetchPromise;
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-      }
-      
-      const blob = await response.blob();
-      const fileName = fixedAudioUrl.split('/').pop() || 'audio-file.mp3';
-      const file = new File([blob], fileName, { type: 'audio/mpeg' });
-      
-      setAudioFile(file);
-      
-      // Processar o arquivo
-      await processAudioFile(file);
-      
-    } catch (error) {
-      console.error('Error fetching file from URL:', error);
-      setFileError(`Error fetching file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setIsProcessing(false);
-      setProcessingStatus('');
-    }
-  };
-
-  const processAudioFile = async (file: File) => {
-    try {
-      console.log('🎤 Starting Speech Recognition process');
-      console.log(`File: ${file.name} (${file.type}, ${Math.round(file.size/1024)} KB)`);
-      
-      // Reset text blocks
-      setTextBlocks([]);
-      
-      const formData = new FormData();
-      formData.append('input', file);
-      formData.append('model', 'onnx-community/whisper-small');
-      formData.append('dtype', 'q4');
-      formData.append('language', 'en');
-      formData.append('return_timestamps', 'false');
-      formData.append('stream', 'true');
-
-      console.log('📤 Sending request to API:', {
-        model: 'onnx-community/whisper-small',
-        dtype: 'q4',
-        language: 'en',
-        return_timestamps: false,
-        stream: true
-      });
-
-      const response = await fetch(API_URL + '/speech-recognition', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API Error:', response.status, response.statusText, errorText);
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
-      }
-
-      console.log('✅ API response received, starting stream processing');
-      
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      
-      if (!reader) {
-        console.error('❌ Failed to get response reader');
-        throw new Error('Failed to get response reader');
-      }
-      
-      console.log('Step 3: Receiving data...');
-      
-      let totalBytesReceived = 0;
-      
-      let chunkCounter = 0;
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          console.log('📝 Stream completed');
-          setProcessingStatus("Completed: Success, open DevTools to see results");
-          
-          // Stop the timer when stream is complete
-          if (timerIntervalRef.current !== null) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
-          }
-          
-          break;
-        }
-        
-        chunkCounter++;
-        
-        if (value) {
-          totalBytesReceived += value.length;
-          updateBytesDisplay(totalBytesReceived);
-        }
-        
-        const chunk = decoder.decode(value, {stream: true});
-        console.log(`📦 Chunk #${chunkCounter} received: ${value?.length || 0} bytes`);
-        
-        if (chunk.trim()) {
-          console.log(`🔽 Chunk content: ${chunk}`);
-        }
-      }
-      
-      console.log('🎉 Speech Recognition process completed successfully');
-      
-      setProcessingStatus("Success, open DevTools to see results");
-      
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      console.error('❌ Error in Speech Recognition process:', errorMessage);
-      setFileError(`Error: ${errorMessage}`);
-      setTextBlocks([]);
-      
-      // Clear the timer interval on error
-      if (timerIntervalRef.current !== null) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  function updateBytesDisplay(bytes: number) {
-    setProcessingStatus(`Receiving data: ${bytes} bytes`);
-  }
-
-
-  const statusText = {
-    loading: 'Connecting to server... waiting for tasks',
-    connected: `Connected to Woolball server`,
-    disconnected: 'You are offline',
-    error: 'Connection error'
-  }[connection];
 
   const handleButton = () => {
     if (running) {
@@ -379,141 +270,187 @@ function App() {
     return `${seconds}s`;
   };
 
-  // Function to generate cURL command
-  const generateCurlCommand = () => {
-    const apiEndpoint = API_URL + '/speech-recognition';
-    return `curl -X POST \\
-  "${apiEndpoint}" \\
-  -H "Content-Type: multipart/form-data" \\
-  -F "input=@your-audio-file.mp3" \\
-  -F "model=onnx-community/whisper-small" \\
-  -F "dtype=q4" \\
-  -F "language=en" \\
-  -F "return_timestamps=false" \\
-  -F "stream=true"`;
-  };
-  
-  // Function to generate TTS cURL command
-  const generateTtsCurlCommand = () => {
-    const apiEndpoint = API_URL + '/text-to-speech';
-    return `curl -X POST \\
-  "${apiEndpoint}" \\
-  -H "Content-Type: multipart/form-data" \\
-  -F "input=your text to synthesize" \\
-  -F "model=Xenova/mms-tts-eng" \\
-  -F "dtype=q8"`;
-  };
-  
-  // Function to generate Translation cURL command
-  const generateTranslationCurlCommand = () => {
-    const apiEndpoint = API_URL + '/translation';
-    return `curl -X POST \\
-  "${apiEndpoint}" \\
-  -H "Content-Type: multipart/form-data" \\
-  -F "input=your text to translate" \\
-  -F "model=Xenova/nllb-200-distilled-600M" \\
-  -F "dtype=q8" \\
-  -F "srcLang=eng_Latn" \\
-  -F "tgtLang=por_Latn"`;
-  };
-  
-  // Function to generate Text Generation cURL command
-  const generateTextGenCurlCommand = () => {
-    const apiEndpoint = API_URL + '/text-generation';
-    return `curl -X POST \\
-  "${apiEndpoint}" \\
-  -H "Content-Type: multipart/form-data" \\
-  -F 'input=[{"role":"system","content":"You are a helpful assistant."},{"role":"user","content":"Your question here"}]' \\
-  -F "model=HuggingFaceTB/SmolLM2-135M-Instruct" \\
-  -F "dtype=fp16" \\
-  -F "max_new_tokens=250" \\
-  -F "do_sample=false"`;
+  // Update task state helper
+  const updateTaskState = <T extends keyof TaskStates>(
+    taskType: T, 
+    updates: Partial<TaskStates[T]>
+  ) => {
+    setTaskStates(prev => ({
+      ...prev,
+      [taskType]: { ...prev[taskType], ...updates }
+    }));
   };
 
-  // Function to copy cURL to clipboard
-  const copyCurlToClipboard = () => {
-    navigator.clipboard.writeText(generateCurlCommand())
-      .then(() => {
-        setCopiedToClipboard(true);
-        setTimeout(() => setCopiedToClipboard(false), 2000);
-      })
-      .catch(err => {
-        console.error('Error copying to clipboard:', err);
-      });
-  };
-  
-  // Function to copy TTS cURL to clipboard
-  const copyTtsCurlToClipboard = () => {
-    navigator.clipboard.writeText(generateTtsCurlCommand())
-      .then(() => {
-        setCopiedToClipboard(true);
-        setTimeout(() => setCopiedToClipboard(false), 2000);
-      })
-      .catch(err => {
-        console.error('Error copying to clipboard:', err);
-      });
-  };
-  
-  // Function to copy Translation cURL to clipboard
-  const copyTranslationCurlToClipboard = () => {
-    navigator.clipboard.writeText(generateTranslationCurlCommand())
-      .then(() => {
-        setCopiedToClipboard(true);
-        setTimeout(() => setCopiedToClipboard(false), 2000);
-      })
-      .catch(err => {
-        console.error('Error copying to clipboard:', err);
-      });
-  };
-  
-  // Function to copy Text Generation cURL to clipboard
-  const copyTextGenCurlToClipboard = () => {
-    navigator.clipboard.writeText(generateTextGenCurlCommand())
-      .then(() => {
-        setCopiedToClipboard(true);
-        setTimeout(() => setCopiedToClipboard(false), 2000);
-      })
-      .catch(err => {
-        console.error('Error copying to clipboard:', err);
-      });
-  };
-
-  // Process text to speech
-  const startTtsProcessing = async () => {
-    // Reset states
-    setIsTtsProcessing(true);
-    setTtsStatus('Preparing voice synthesis...');
-    setTtsElapsedTime(0);
-    
-    // Start the timer
+  // Start timer for a task
+  const startTimer = (taskType: keyof TaskStates) => {
     const startTime = Date.now();
-    ttsTimerRef.current = window.setInterval(() => {
-      setTtsElapsedTime(Date.now() - startTime);
+    timerRefs.current[taskType] = window.setInterval(() => {
+      updateTaskState(taskType, { elapsedTime: Date.now() - startTime });
     }, 100);
+  };
+
+  // Stop timer for a task
+  const stopTimer = (taskType: keyof TaskStates) => {
+    if (timerRefs.current[taskType] !== null) {
+      clearInterval(timerRefs.current[taskType]);
+      timerRefs.current[taskType] = null;
+    }
+  };
+
+  // Speech Recognition processing
+  const startSpeechRecognition = async () => {
+    const taskType = 'speechRecognition';
+    const task = taskStates[taskType];
     
-    // Fixed text for TTS
+    updateTaskState(taskType, { 
+      isProcessing: true, 
+      status: 'Distributing tasks...', 
+      elapsedTime: 0 
+    });
+    startTimer(taskType);
+    
+    const fetchPromise = fetch(fixedAudioUrl);
+    
+    setTimeout(() => {
+      updateTaskState(taskType, { status: 'Processing...' });
+    }, 2000);
+    
+    try {
+      console.log(`🎤 Fetching audio from fixed URL: ${fixedAudioUrl}`);
+      const response = await fetchPromise;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const fileName = fixedAudioUrl.split('/').pop() || 'audio-file.mp3';
+      const file = new File([blob], fileName, { type: 'audio/mpeg' });
+      setAudioFile(file);
+      
+      await processAudioFile(file, task);
+      
+    } catch (error) {
+      console.error('Error fetching file from URL:', error);
+      updateTaskState(taskType, { 
+        status: `Error fetching file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        isProcessing: false 
+      });
+      stopTimer(taskType);
+    }
+  };
+
+  const processAudioFile = async (file: File, task: SpeechRecognitionTask) => {
+    const taskType = 'speechRecognition';
+    
+    try {
+      console.log('🎤 Starting Speech Recognition process');
+      console.log(`File: ${file.name} (${file.type}, ${Math.round(file.size/1024)} KB)`);
+      
+      const formData = new FormData();
+      formData.append('input', file);
+      formData.append('model', task.model);
+      formData.append('dtype', task.dtype);
+      formData.append('language', 'en');
+      formData.append('return_timestamps', 'true');
+      formData.append('stream', 'true');
+
+      console.log('📤 Sending request to API');
+
+      const response = await fetch(API_URL + '/speech-recognition', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, response.statusText, errorText);
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      console.log('✅ API response received, starting stream processing');
+      updateTaskState(taskType, { status: 'Receiving data...' });
+      
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      if (!reader) {
+        throw new Error('Failed to get response reader');
+      }
+      
+      let totalBytesReceived = 0;
+      let chunkCounter = 0;
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          console.log('📝 Stream completed');
+          updateTaskState(taskType, { 
+            status: "Success, open DevTools to see results",
+            isProcessing: false 
+          });
+          stopTimer(taskType);
+          break;
+        }
+        
+        chunkCounter++;
+        if (value) {
+          totalBytesReceived += value.length;
+          updateTaskState(taskType, { status: `Receiving data: ${totalBytesReceived} bytes` });
+        }
+        
+        const chunk = decoder.decode(value, {stream: true});
+        console.log(`📦 Chunk #${chunkCounter} received: ${value?.length || 0} bytes`);
+        
+        if (chunk.trim()) {
+          console.log(`🔽 Chunk content: ${chunk}`);
+        }
+      }
+      
+      console.log('🎉 Speech Recognition process completed successfully');
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      console.error('❌ Error in Speech Recognition process:', errorMessage);
+      updateTaskState(taskType, { 
+        status: `Error: ${errorMessage}`,
+        isProcessing: false 
+      });
+      stopTimer(taskType);
+    }
+  };
+
+  // Text to Speech processing
+  const startTextToSpeech = async () => {
+    const taskType = 'textToSpeech';
+    const task = taskStates[taskType];
+    
+    updateTaskState(taskType, { 
+      isProcessing: true, 
+      status: 'Preparing voice synthesis...', 
+      elapsedTime: 0 
+    });
+    startTimer(taskType);
+    
     const fixedText = "Hello, this is a test of the text to speech system. Running AI models directly in your browser is now possible.";
     
     try {
       console.log('🔊 Starting Text-to-Speech process');
-      console.log(`Fixed text: "${fixedText}"`);
       
-      // Update status for UI
       setTimeout(() => {
-        console.log('Step 2: Generating voice...');
-        setTtsStatus('Generating voice...');
+        updateTaskState(taskType, { status: 'Generating voice...' });
       }, 1000);
       
       const formData = new FormData();
       formData.append('input', fixedText);
-      formData.append('model', 'Xenova/mms-tts-eng');
-      formData.append('dtype', 'q8');
+      formData.append('model', task.model);
+      formData.append('dtype', task.dtype);
       
-      console.log('📤 Sending TTS request:', {
-        text: fixedText,
-        model: 'Xenova/mms-tts-eng',
-        dtype: 'q8'
-      });
+      // Only include voice parameter if Kokoro is selected
+      if (task.model.includes('Kokoro')) {
+        formData.append('voice', task.voice);
+      }
+      
+      console.log('📤 Sending TTS request');
       
       const response = await fetch(API_URL + '/text-to-speech', {
         method: 'POST',
@@ -527,99 +464,77 @@ function App() {
       }
       
       console.log('✅ API response received, processing audio data');
-      setTtsStatus('Processing audio data...');
+      updateTaskState(taskType, { status: 'Processing audio data...' });
       
-      try {
         const result = await response.json();
         
-        // Verificar se a resposta é um array
         if (Array.isArray(result)) {
           const audioItems = result.filter(item => item.audio);
-          
           if (audioItems.length > 0) {
-            // Calcular o tamanho total dos dados de áudio
-            const totalBytes = audioItems.reduce((total, item) => {
-              return total + (item.audio ? item.audio.length : 0);
-            }, 0);
+          const totalBytes = audioItems.reduce((total, item) => total + (item.audio ? item.audio.length : 0), 0);
             console.log(`Received audio data: ${totalBytes} bytes (${(totalBytes / 1024).toFixed(2)} KB)`);
-            setTtsStatus("Success, open DevTools to see results");
+          updateTaskState(taskType, { 
+            status: "Success, open DevTools to see results",
+            isProcessing: false 
+          });
           } else {
-            throw new Error('Nenhum áudio encontrado na resposta da API');
+          throw new Error('No audio found in API response');
           }
         } else if (result.audio) {
           const audioBytes = result.audio.length;
           console.log(`Received audio data: ${audioBytes} bytes (${(audioBytes / 1024).toFixed(2)} KB)`);
-          setTtsStatus("Success, open DevTools to see results");
+        updateTaskState(taskType, { 
+          status: "Success, open DevTools to see results",
+          isProcessing: false 
+        });
         } else if (result.error) {
           throw new Error(result.error);
         } else {
-          throw new Error('Resposta da API não contém dados de áudio');
-        }
-      } catch (parseError: unknown) {
-        throw new Error(`Erro ao processar resposta: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        throw new Error('API response does not contain audio data');
       }
       
-      // Clear the timer interval
-      if (ttsTimerRef.current !== null) {
-        clearInterval(ttsTimerRef.current);
-        ttsTimerRef.current = null;
-      }
+      stopTimer(taskType);
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       console.error('❌ Error in Text-to-Speech process:', errorMessage);
-      setTtsStatus(`Error: ${errorMessage}`);
-      
-      // Clear the timer interval on error
-      if (ttsTimerRef.current !== null) {
-        clearInterval(ttsTimerRef.current);
-        ttsTimerRef.current = null;
-      }
-    } finally {
-      setIsTtsProcessing(false);
+      updateTaskState(taskType, { 
+        status: `Error: ${errorMessage}`,
+        isProcessing: false 
+      });
+      stopTimer(taskType);
     }
   };
-  
-  // Process text translation
-  const startTranslationProcessing = async () => {
-    // Reset states
-    setIsTranslationProcessing(true);
-    setTranslationStatus('Preparing translation...');
-    setTranslationElapsedTime(0);
+
+  // Translation processing
+  const startTranslation = async () => {
+    const taskType = 'translation';
+    const task = taskStates[taskType];
     
-    // Start the timer
-    const startTime = Date.now();
-    translationTimerRef.current = window.setInterval(() => {
-      setTranslationElapsedTime(Date.now() - startTime);
-    }, 100);
+    updateTaskState(taskType, { 
+      isProcessing: true, 
+      status: 'Preparing translation...', 
+      elapsedTime: 0 
+    });
+    startTimer(taskType);
     
-    // Fixed text for translation
     const fixedText = "The quick brown fox jumps over the lazy dog. Machine learning has transformed how we process natural language.";
     
     try {
       console.log('🌐 Starting Translation process');
-      console.log(`Text to translate: "${fixedText}"`);
       
-      // Update status for UI
       setTimeout(() => {
-        console.log('Step 2: Translating...');
-        setTranslationStatus('Translating...');
+        updateTaskState(taskType, { status: 'Translating...' });
       }, 1000);
       
       const formData = new FormData();
       formData.append('input', fixedText);
-      formData.append('model', 'Xenova/nllb-200-distilled-600M');
-      formData.append('dtype', 'q8');
-      formData.append('srcLang', 'eng_Latn');
-      formData.append('tgtLang', 'por_Latn');
+      formData.append('model', task.model);
+      formData.append('dtype', task.dtype);
+      formData.append('srcLang', task.srcLang);
+      formData.append('tgtLang', task.tgtLang);
       
-      console.log('📤 Sending translation request:', {
-        text: fixedText,
-        model: 'Xenova/nllb-200-distilled-600M',
-        dtype: 'q8',
-        srcLang: 'eng_Latn',
-        tgtLang: 'por_Latn'
-      });
+      console.log('📤 Sending translation request');
       
       const response = await fetch(API_URL + '/translation', {
         method: 'POST',
@@ -638,46 +553,39 @@ function App() {
       
       if (result.translatedText) {
         console.log('🔤 Translation result:', result.translatedText);
-        setTranslationStatus("Success, open DevTools to see results");
+        updateTaskState(taskType, { 
+          status: "Success, open DevTools to see results",
+          isProcessing: false 
+        });
       } else if (result.error) {
         throw new Error(result.error);
       }
       
-      // Clear the timer interval
-      if (translationTimerRef.current !== null) {
-        clearInterval(translationTimerRef.current);
-        translationTimerRef.current = null;
-      }
+      stopTimer(taskType);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       console.error('❌ Error in Translation process:', errorMessage);
-      setTranslationStatus(`Error: ${errorMessage}`);
-      
-      // Clear the timer interval on error
-      if (translationTimerRef.current !== null) {
-        clearInterval(translationTimerRef.current);
-        translationTimerRef.current = null;
-      }
-    } finally {
-      setIsTranslationProcessing(false);
+      updateTaskState(taskType, { 
+        status: `Error: ${errorMessage}`,
+        isProcessing: false 
+      });
+      stopTimer(taskType);
     }
   };
-  
-  // Process text generation
-  const startTextGenProcessing = async () => {
-    // Reset states
-    setIsTextGenProcessing(true);
-    setTextGenStatus('Preparing AI model...');
-    setTextGenElapsedTime(0);
+
+  // Text Generation processing
+  const startTextGeneration = async () => {
+    const taskType = 'textGeneration';
+    const task = taskStates[taskType];
     
-    // Start the timer
-    const startTime = Date.now();
-    textGenTimerRef.current = window.setInterval(() => {
-      setTextGenElapsedTime(Date.now() - startTime);
-    }, 100);
+    updateTaskState(taskType, { 
+      isProcessing: true, 
+      status: 'Preparing AI model...', 
+      elapsedTime: 0 
+    });
+    startTimer(taskType);
     
-    // Fixed messages for text generation
     const messages = [
       { role: "system", content: "You are a helpful assistant." },
       { role: "user", content: "What is the capital of Brazil?" }
@@ -685,31 +593,39 @@ function App() {
     
     try {
       console.log('🤖 Starting Text Generation process');
-      console.log('Messages:', messages);
       
-      // Update status for UI
       setTimeout(() => {
-        console.log('Step 2: Generating response...');
-        setTextGenStatus('Generating response...');
+        updateTaskState(taskType, { status: 'Generating response...' });
       }, 1000);
       
       const formData = new FormData();
       formData.append('input', JSON.stringify(messages));
-      formData.append('model', 'HuggingFaceTB/SmolLM2-135M-Instruct');
-      formData.append('dtype', 'fp16');
-      formData.append('max_new_tokens', '250');
-      formData.append('do_sample', 'false');
+      formData.append('model', task.model);
       
-      console.log('📤 Sending text generation request:', {
-        messages,
-        model: 'HuggingFaceTB/SmolLM2-135M-Instruct',
-        dtype: 'fp16',
-        max_new_tokens: 250,
-        do_sample: false
-      });
+      // Add provider-specific parameters
+      if (task.provider === 'transformers') {
+        formData.append('dtype', task.dtype);
+        formData.append('max_new_tokens', task.maxTokens.toString());
+        formData.append('do_sample', task.doSample.toString());
+      } else if (task.provider === 'webllm') {
+        formData.append('provider', 'webllm');
+        formData.append('stream', task.enableStreaming.toString());
+      } else if (task.provider === 'mediapipe') {
+        formData.append('provider', 'mediapipe');
+        formData.append('maxTokens', task.maxTokens.toString());
+        formData.append('stream', task.enableStreaming.toString());
+      }
+      
+      console.log('📤 Sending text generation request');
+      
+      const headers: HeadersInit = {};
+      if (task.provider !== 'transformers') {
+        headers['X-Provider'] = task.provider;
+      }
       
       const response = await fetch(API_URL + '/text-generation', {
         method: 'POST',
+        headers,
         body: formData
       });
       
@@ -721,226 +637,242 @@ function App() {
       
       console.log('✅ API response received, processing generated text');
       
+      if (task.enableStreaming && (task.provider === 'webllm' || task.provider === 'mediapipe')) {
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value, { stream: true });
+            console.log('Received chunk:', chunk);
+          }
+        }
+      } else {
       const result = await response.json();
       
       if (result.generatedText) {
         console.log('📝 Generated text:', result.generatedText);
-        setTextGenStatus("Success, open DevTools to see results");
       } else if (result.error) {
         throw new Error(result.error);
       }
-      
-      // Clear the timer interval
-      if (textGenTimerRef.current !== null) {
-        clearInterval(textGenTimerRef.current);
-        textGenTimerRef.current = null;
       }
+      
+      updateTaskState(taskType, { 
+        status: "Success, open DevTools to see results",
+        isProcessing: false 
+      });
+      stopTimer(taskType);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       console.error('❌ Error in Text Generation process:', errorMessage);
-      setTextGenStatus(`Error: ${errorMessage}`);
-      
-      // Clear the timer interval on error
-      if (textGenTimerRef.current !== null) {
-        clearInterval(textGenTimerRef.current);
-        textGenTimerRef.current = null;
-      }
-    } finally {
-      setIsTextGenProcessing(false);
+      updateTaskState(taskType, { 
+        status: `Error: ${errorMessage}`,
+        isProcessing: false 
+      });
+      stopTimer(taskType);
     }
   };
 
-  // Process Kokoro TTS
-  const startKokoroProcessing = async () => {
-    setIsKokoroProcessing(true);
-    setKokoroStatus('Preparing Kokoro TTS...');
-    setKokoroElapsedTime(0);
+  // Generate cURL commands for each task
+  const generateCurlCommand = (taskType: keyof TaskStates) => {
+    const task = taskStates[taskType];
+    const apiEndpoint = API_URL;
     
-    const startTime = Date.now();
-    kokoroTimerRef.current = window.setInterval(() => {
-      setKokoroElapsedTime(Date.now() - startTime);
-    }, 100);
-    
-    const fixedText = "Hello, this is a test of the Kokoro text to speech system.";
-    
-    try {
-      console.log('🎵 Starting Kokoro TTS process');
-      
-      setTimeout(() => {
-        setKokoroStatus('Generating voice...');
-      }, 1000);
-      
-      const formData = new FormData();
-      formData.append('input', fixedText);
-      formData.append('model', 'onnx-community/Kokoro-82M-ONNX');
-      formData.append('dtype', 'q8');
-      formData.append('voice', 'af_heart');
-      
-      const response = await fetch(API_URL + '/text-to-speech', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
+    switch (taskType) {
+      case 'speechRecognition': {
+        const speechTask = task as SpeechRecognitionTask;
+        return `curl -X POST \\
+  "${apiEndpoint}/speech-recognition" \\
+  -H "Content-Type: multipart/form-data" \\
+  -F "input=@your-audio-file.mp3" \\
+  -F "model=${speechTask.model}" \\
+  -F "dtype=${speechTask.dtype}" \\
+  -F "language=${speechTask.language}" \\
+  -F "return_timestamps=${speechTask.includeTimestamps}" \\
+  -F "stream=${speechTask.enableStreaming}"`;
       }
-      
-      setKokoroStatus("Success, open DevTools to see results");
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      console.error('❌ Error in Kokoro TTS process:', errorMessage);
-      setKokoroStatus(`Error: ${errorMessage}`);
-    } finally {
-      if (kokoroTimerRef.current !== null) {
-        clearInterval(kokoroTimerRef.current);
-        kokoroTimerRef.current = null;
-      }
-      setIsKokoroProcessing(false);
-    }
-  };
-
-  // Process WebLLM Text Generation
-  const startWebLLMProcessing = async () => {
-    setIsWebLLMProcessing(true);
-    setWebLLMStatus('Preparing WebLLM...');
-    setWebLLMElapsedTime(0);
-    
-    const startTime = Date.now();
-    webLLMTimerRef.current = window.setInterval(() => {
-      setWebLLMElapsedTime(Date.now() - startTime);
-    }, 100);
-    
-    try {
-      console.log('🧠 Starting WebLLM process');
-      
-      setTimeout(() => {
-        setWebLLMStatus('Generating response...');
-      }, 1000);
-      
-      const messages = [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: "What is the capital of Brazil?" }
-      ];
-      
-      const formData = new FormData();
-      formData.append('input', JSON.stringify(messages));
-      formData.append('model', 'SmolLM2-1.7B-Instruct-q4f32_1-MLC');
-      formData.append('provider', 'webllm');
-      formData.append('stream', 'false');
-      
-      const response = await fetch(API_URL + '/text-generation', {
-        method: 'POST',
-        headers: {
-          'X-Provider': 'webllm'
-        },
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
-      }
-
-      if (response.body) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const chunk = decoder.decode(value, { stream: true });
-          console.log('Received chunk:', chunk);
+  
+      case 'textToSpeech': {
+        const ttsTask = task as TextToSpeechTask;
+        let ttsCmd = `curl -X POST \\
+  "${apiEndpoint}/text-to-speech" \\
+  -H "Content-Type: multipart/form-data" \\
+  -F "input=your text to synthesize" \\
+  -F "model=${ttsTask.model}" \\
+  -F "dtype=${ttsTask.dtype}"`;
+        if (ttsTask.model.includes('Kokoro')) {
+          ttsCmd += ` \\
+  -F "voice=${ttsTask.voice}"`;
         }
+        return ttsCmd;
       }
-      
-      setWebLLMStatus("Success, open DevTools to see results");
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      console.error('❌ Error in WebLLM process:', errorMessage);
-      setWebLLMStatus(`Error: ${errorMessage}`);
-    } finally {
-      if (webLLMTimerRef.current !== null) {
-        clearInterval(webLLMTimerRef.current);
-        webLLMTimerRef.current = null;
+  
+      case 'translation': {
+        const translationTask = task as TranslationTask;
+        return `curl -X POST \\
+  "${apiEndpoint}/translation" \\
+  -H "Content-Type: multipart/form-data" \\
+  -F "input=your text to translate" \\
+  -F "model=${translationTask.model}" \\
+  -F "dtype=${translationTask.dtype}" \\
+  -F "srcLang=${translationTask.srcLang}" \\
+  -F "tgtLang=${translationTask.tgtLang}"`;
       }
-      setIsWebLLMProcessing(false);
+  
+      case 'textGeneration': {
+        const textGenTask = task as TextGenerationTask;
+        let genCmd = `curl -X POST \\
+  "${apiEndpoint}/text-generation" \\
+  -H "Content-Type: multipart/form-data"`;
+        
+        if (textGenTask.provider !== 'transformers') {
+          genCmd += ` \\
+  -H "X-Provider: ${textGenTask.provider}"`;
+        }
+        
+        genCmd += ` \\
+  -F 'input=[{"role":"system","content":"You are a helpful assistant."},{"role":"user","content":"Your question here"}]' \\
+  -F "model=${textGenTask.model}"`;
+        
+        if (textGenTask.provider === 'transformers') {
+          genCmd += ` \\
+  -F "dtype=${textGenTask.dtype}" \\
+  -F "max_new_tokens=${textGenTask.maxTokens}" \\
+  -F "do_sample=${textGenTask.doSample}"`;
+        } else if (textGenTask.provider === 'mediapipe') {
+          genCmd += ` \\
+  -F "maxTokens=${textGenTask.maxTokens}" \\
+  -F "stream=${textGenTask.enableStreaming}"`;
+        } else if (textGenTask.provider === 'webllm') {
+          genCmd += ` \\
+  -F "stream=${textGenTask.enableStreaming}"`;
+        }
+        
+        return genCmd;
+      }
+        
+      default:
+        return '';
     }
   };
 
-  // Process MediaPipe Text Generation
-  const startMediaPipeProcessing = async () => {
-    setIsMediaPipeProcessing(true);
-    setMediaPipeStatus('Preparing MediaPipe...');
-    setMediaPipeElapsedTime(0);
-    
-    const startTime = Date.now();
-    mediaPipeTimerRef.current = window.setInterval(() => {
-      setMediaPipeElapsedTime(Date.now() - startTime);
-    }, 100);
-    
-    try {
-      console.log('🤖 Starting MediaPipe process');
-      
-      setTimeout(() => {
-        setMediaPipeStatus('Generating response...');
-      }, 1000);
-      
-      const messages = [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: "What is the capital of Brazil?" }
-      ];
-      
-      const formData = new FormData();
-      formData.append('input', JSON.stringify(messages));
-      formData.append('model', 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma3-1b-it-int4.task');
-      formData.append('provider', 'mediapipe');
-      formData.append('maxTokens', '1000');
-      formData.append('randomSeed', '101');
-      formData.append('topK', '40');
-      formData.append('temperature', '0.8');
-      formData.append('stream', 'false');
-      
-      const response = await fetch(API_URL + '/text-generation', {
-        method: 'POST',
-        headers: {
-          'X-Provider': 'mediapipe'
-        },
-        body: formData
+  // Copy cURL to clipboard
+  const copyCurlToClipboard = (taskType: keyof TaskStates) => {
+    navigator.clipboard.writeText(generateCurlCommand(taskType))
+      .then(() => {
+        setCopiedToClipboard(true);
+        setTimeout(() => setCopiedToClipboard(false), 2000);
+      })
+      .catch(err => {
+        console.error('Error copying to clipboard:', err);
       });
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
-      }
+  };
 
-      if (response.body) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+  const statusText = {
+    loading: 'Connecting to server... waiting for tasks',
+    connected: `Connected to Woolball server`,
+    disconnected: 'You are offline',
+    error: 'Connection error'
+  }[connection];
+
+  // Render task card
+  const renderTaskCard = (
+    taskType: keyof TaskStates,
+    title: string,
+    onStart: () => void
+  ) => {
+    const task = taskStates[taskType];
+    const models = modelOptions[taskType];
+
+    return (
+      <div className="http-test-card" key={taskType}>
+        <div className="http-test-top-line">
+          <div className="http-test-method">{title.toUpperCase()}</div>
+          <span className="http-test-service-name">HTTP REQUEST</span>
+        </div>
         
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        <div className="task-controls-row">
+          <select 
+            value={task.model} 
+            onChange={(e) => {
+              const selectedModel = models.find(m => m.value === e.target.value);
+              updateTaskState(taskType, { 
+                model: e.target.value,
+                ...(selectedModel && 'provider' in selectedModel ? { provider: selectedModel.provider } : {})
+              });
+            }}
+            disabled={task.isProcessing}
+            className="model-selector"
+          >
+            {models.map(model => (
+              <option key={model.value} value={model.value}>
+                {model.label}
+              </option>
+            ))}
+          </select>
           
-          const chunk = decoder.decode(value, { stream: true });
-          console.log('Received chunk:', chunk);
-        }
-      }
-      
-      setMediaPipeStatus("Success, open DevTools to see results");
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      console.error('❌ Error in MediaPipe process:', errorMessage);
-      setMediaPipeStatus(`Error: ${errorMessage}`);
-    } finally {
-      if (mediaPipeTimerRef.current !== null) {
-        clearInterval(mediaPipeTimerRef.current);
-        mediaPipeTimerRef.current = null;
-      }
-      setIsMediaPipeProcessing(false);
-    }
+          <div className="card-actions">
+            <button 
+              className={`copy-curl-button ${copiedToClipboard ? 'copied' : ''}`}
+              onClick={() => copyCurlToClipboard(taskType)}
+              aria-label="Copy cURL command to clipboard"
+            >
+              <span className="copy-icon">
+                {copiedToClipboard ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="currentColor"/>
+                  </svg>
+                )}
+              </span>
+              <span className="tooltip">Copy cURL</span>
+            </button>
+            <button 
+              className={`play-button ${task.isProcessing ? 'processing' : ''}`}
+              onClick={onStart}
+              aria-label="Run test"
+              disabled={task.isProcessing}
+            >
+              <span className="play-icon">▶</span>
+              <span className="tooltip">Run Test</span>
+            </button>
+          </div>
+        </div>
+       
+        {task.isProcessing ? (
+          <div className="processing-indicator">
+            <span className="spinner"></span>
+            {task.status}
+            <span className="elapsed-time">{formatElapsedTime(task.elapsedTime)}</span>
+          </div>
+        ) : task.status?.includes("Success") ? (
+          <div className="success-message">
+            <span className="check-icon">✓</span>
+            {task.status}
+            <span className="elapsed-time">{formatElapsedTime(task.elapsedTime)}</span>
+          </div>
+        ) : task.status?.includes("Error") ? (
+          <div className="error-message">
+            <span className="error-icon">❌</span>
+            {task.status}
+            <span className="elapsed-time">{formatElapsedTime(task.elapsedTime)}</span>
+          </div>
+        ) : !running ? (
+          <div className="waiting-message">
+            <span className="info-icon">ℹ️</span>
+            Press START to also be a node
+          </div>
+        ) : null}
+      </div>
+    );
   };
 
   return (
@@ -957,7 +889,6 @@ function App() {
         </button>
       </header>
       
-      {/* Mobile links positioned below header for consistent visibility */}
       <div className="mobile-links">
         <a href="https://github.com/woolball-xyz/woolball-server" className="repo-link" target="_blank" rel="noopener noreferrer">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style={{marginRight: "4px"}}>
@@ -982,9 +913,6 @@ function App() {
               <div ref={containerRef} className="events-container">
               </div>
             ) : (
-              // Show the configuration UI only when not running
-              <>
-                {/* Node selector section */}
                 <div className="config-section">
                   <div className="node-selector-container">
                     <h3 className="node-selector-title">Parallel Processing Nodes</h3>
@@ -1012,7 +940,6 @@ function App() {
                     </div>
                   </div>
                 </div>
-              </>
             )}
           </div>
           
@@ -1055,383 +982,13 @@ function App() {
         </div>
       </div>
 
-      {/* Fixed bottom bar replacing the left drawer */}
+      {/* Fixed bottom bar with 4 main task categories */}
       <div className="fixed-bottom-bar">
         <div className="test-cards-container">
-          {/* Speech Recognition Test Card */}
-          <div className="http-test-card">  
-            <div className="http-test-top-line">
-              <div className="http-test-method">SPEECH TO TEXT</div>
-              <span className="http-test-service-name">HTTP REQUEST</span>
-            </div>
-            <div className="http-test-header">
-              <span className="http-test-title">onnx-community/whisper-small</span>
-              <div className="card-actions">
-                <button 
-                  className={`copy-curl-button ${copiedToClipboard ? 'copied' : ''}`}
-                  onClick={copyCurlToClipboard}
-                  aria-label="Copy cURL command to clipboard"
-                >
-                  <span className="copy-icon">
-                    {copiedToClipboard ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="currentColor"/>
-                      </svg>
-                    )}
-                  </span>
-                  <span className="tooltip">Copy cURL</span>
-                </button>
-                <button 
-                  className={`play-button ${isProcessing ? 'processing' : ''}`}
-                  onClick={startProcessing}
-                  aria-label="Run test with default audio file"
-                  disabled={isProcessing}
-                >
-                  <span className="play-icon">▶</span>
-                  <span className="tooltip">Run Test</span>
-                </button>
-              </div>
-            </div>
-           
-            {isProcessing ? (
-              <div className="processing-indicator">
-                <span className="spinner"></span>
-                {processingStatus}
-                <span className="elapsed-time">{formatElapsedTime(elapsedTime)}</span>
-              </div>
-            ) : textBlocks.length > 0 || processingStatus?.includes("Success") ? (
-              <div className="success-message">
-                <span className="check-icon">✓</span>
-                {processingStatus}
-                <span className="elapsed-time">{formatElapsedTime(elapsedTime)}</span>
-              </div>
-            ) : !running ? (
-              <div className="waiting-message">
-                <span className="info-icon">ℹ️</span>
-                Press START to also be a node
-              </div>
-            ) : null}
-            
-            {fileError && <div className="file-error">{fileError}</div>}
-          </div>
-          
-          {/* Text-to-Speech Test Card */}
-          <div className="http-test-card">  
-            <div className="http-test-top-line">
-              <div className="http-test-method">TEXT TO SPEECH</div>
-              <span className="http-test-service-name">HTTP REQUEST</span>
-            </div>
-            <div className="http-test-header">
-              <span className="http-test-title">Xenova/mms-tts-eng</span>
-              <div className="card-actions">
-                <button 
-                  className={`copy-curl-button ${copiedToClipboard ? 'copied' : ''}`}
-                  onClick={copyTtsCurlToClipboard}
-                  aria-label="Copy cURL command to clipboard"
-                >
-                  <span className="copy-icon">
-                    {copiedToClipboard ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="currentColor"/>
-                      </svg>
-                    )}
-                  </span>
-                  <span className="tooltip">Copy cURL</span>
-                </button>
-                <button 
-                  className={`play-button ${isTtsProcessing ? 'processing' : ''}`}
-                  onClick={startTtsProcessing}
-                  aria-label="Run TTS test"
-                  disabled={isTtsProcessing}
-                >
-                  <span className="play-icon">▶</span>
-                  <span className="tooltip">Run Test</span>
-                </button>
-              </div>
-            </div>
-           
-            {isTtsProcessing ? (
-              <div className="processing-indicator">
-                <span className="spinner"></span>
-                {ttsStatus ? ttsStatus : 'Processando...'}
-                <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
-              </div>
-            ) : ttsStatus ? (
-              ttsStatus.includes("Success") ? (
-                <div className="success-message">
-                  <span className="check-icon">✓</span>
-                  {ttsStatus}
-                  <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
-                </div>
-              ) : ttsStatus.includes("Error") ? (
-                <div className="error-message">
-                  <span className="error-icon">❌</span>
-                  {ttsStatus}
-                  <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
-                </div>
-              ) : (
-                <div className="info-message">
-                  <span className="info-icon">ℹ️</span>
-                  {ttsStatus}
-                  <span className="elapsed-time">{formatElapsedTime(ttsElapsedTime)}</span>
-                </div>
-              )
-            ) : !running ? (
-              <div className="waiting-message">
-                <span className="info-icon">ℹ️</span>
-                Press START to also be a node
-              </div>
-            ) : null}
-          </div>
-          
-          {/* Translation Test Card */}
-          <div className="http-test-card">  
-            <div className="http-test-top-line">
-              <div className="http-test-method">TRANSLATION</div>
-              <span className="http-test-service-name">HTTP REQUEST</span>
-            </div>
-            <div className="http-test-header">
-              <span className="http-test-title">Xenova/nllb-200-distilled-600M</span>
-              <div className="card-actions">
-                <button 
-                  className={`copy-curl-button ${copiedToClipboard ? 'copied' : ''}`}
-                  onClick={copyTranslationCurlToClipboard}
-                  aria-label="Copy cURL command to clipboard"
-                >
-                  <span className="copy-icon">
-                    {copiedToClipboard ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="currentColor"/>
-                      </svg>
-                    )}
-                  </span>
-                  <span className="tooltip">Copy cURL</span>
-                </button>
-                <button 
-                  className={`play-button ${isTranslationProcessing ? 'processing' : ''}`}
-                  onClick={startTranslationProcessing}
-                  aria-label="Run translation test"
-                  disabled={isTranslationProcessing}
-                >
-                  <span className="play-icon">▶</span>
-                  <span className="tooltip">Run Test</span>
-                </button>
-              </div>
-            </div>
-           
-            {isTranslationProcessing ? (
-              <div className="processing-indicator">
-                <span className="spinner"></span>
-                {translationStatus}
-                <span className="elapsed-time">{formatElapsedTime(translationElapsedTime)}</span>
-              </div>
-            ) : translationStatus?.includes("Success") ? (
-              <div className="success-message">
-                <span className="check-icon">✓</span>
-                {translationStatus}
-                <span className="elapsed-time">{formatElapsedTime(translationElapsedTime)}</span>
-              </div>
-            ) : !running ? (
-              <div className="waiting-message">
-                <span className="info-icon">ℹ️</span>
-                Press START to also be a node
-              </div>
-            ) : null}
-          </div>
-          
-          {/* Text Generation Test Card */}
-          <div className="http-test-card">  
-            <div className="http-test-top-line">
-              <div className="http-test-method">TEXT GENERATION</div>
-              <span className="http-test-service-name">HTTP REQUEST</span>
-            </div>
-            <div className="http-test-header">
-              <span className="http-test-title">HuggingFaceTB/SmolLM2-135M-Instruct</span>
-              <div className="card-actions">
-                <button 
-                  className={`copy-curl-button ${copiedToClipboard ? 'copied' : ''}`}
-                  onClick={copyTextGenCurlToClipboard}
-                  aria-label="Copy cURL command to clipboard"
-                >
-                  <span className="copy-icon">
-                    {copiedToClipboard ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="currentColor"/>
-                      </svg>
-                    )}
-                  </span>
-                  <span className="tooltip">Copy cURL</span>
-                </button>
-                <button 
-                  className={`play-button ${isTextGenProcessing ? 'processing' : ''}`}
-                  onClick={startTextGenProcessing}
-                  aria-label="Run text generation test"
-                  disabled={isTextGenProcessing}
-                >
-                  <span className="play-icon">▶</span>
-                  <span className="tooltip">Run Test</span>
-                </button>
-              </div>
-            </div>
-           
-            {isTextGenProcessing ? (
-              <div className="processing-indicator">
-                <span className="spinner"></span>
-                {textGenStatus}
-                <span className="elapsed-time">{formatElapsedTime(textGenElapsedTime)}</span>
-              </div>
-            ) : textGenStatus?.includes("Success") ? (
-              <div className="success-message">
-                <span className="check-icon">✓</span>
-                {textGenStatus}
-                <span className="elapsed-time">{formatElapsedTime(textGenElapsedTime)}</span>
-              </div>
-            ) : !running ? (
-              <div className="waiting-message">
-                <span className="info-icon">ℹ️</span>
-                Press START to also be a node
-              </div>
-            ) : null}
-          </div>
-
-          {/* Kokoro TTS Test Card */}
-          <div className="http-test-card">  
-            <div className="http-test-top-line">
-              <div className="http-test-method">KOKORO TTS</div>
-              <span className="http-test-service-name">HTTP REQUEST</span>
-            </div>
-            <div className="http-test-header">
-              <span className="http-test-title">onnx-community/Kokoro-82M-ONNX</span>
-              <div className="card-actions">
-                <button 
-                  className={`play-button ${isKokoroProcessing ? 'processing' : ''}`}
-                  onClick={startKokoroProcessing}
-                  aria-label="Run Kokoro TTS test"
-                  disabled={isKokoroProcessing}
-                >
-                  <span className="play-icon">▶</span>
-                  <span className="tooltip">Run Test</span>
-                </button>
-              </div>
-            </div>
-           
-            {isKokoroProcessing ? (
-              <div className="processing-indicator">
-                <span className="spinner"></span>
-                {kokoroStatus}
-                <span className="elapsed-time">{formatElapsedTime(kokoroElapsedTime)}</span>
-              </div>
-            ) : kokoroStatus?.includes("Success") ? (
-              <div className="success-message">
-                <span className="check-icon">✓</span>
-                {kokoroStatus}
-                <span className="elapsed-time">{formatElapsedTime(kokoroElapsedTime)}</span>
-              </div>
-            ) : !running ? (
-              <div className="waiting-message">
-                <span className="info-icon">ℹ️</span>
-                Press START to also be a node
-              </div>
-            ) : null}
-          </div>
-
-          {/* WebLLM Text Generation Test Card */}
-          <div className="http-test-card">  
-            <div className="http-test-top-line">
-              <div className="http-test-method">WEBLLM</div>
-              <span className="http-test-service-name">HTTP REQUEST</span>
-            </div>
-            <div className="http-test-header">
-              <span className="http-test-title">SmolLM2-1.7B-Instruct-q4f32_1-MLC</span>
-              <div className="card-actions">
-                <button 
-                  className={`play-button ${isWebLLMProcessing ? 'processing' : ''}`}
-                  onClick={startWebLLMProcessing}
-                  aria-label="Run WebLLM test"
-                  disabled={isWebLLMProcessing}
-                >
-                  <span className="play-icon">▶</span>
-                  <span className="tooltip">Run Test</span>
-                </button>
-              </div>
-            </div>
-           
-            {isWebLLMProcessing ? (
-              <div className="processing-indicator">
-                <span className="spinner"></span>
-                {webLLMStatus}
-                <span className="elapsed-time">{formatElapsedTime(webLLMElapsedTime)}</span>
-              </div>
-            ) : webLLMStatus?.includes("Success") ? (
-              <div className="success-message">
-                <span className="check-icon">✓</span>
-                {webLLMStatus}
-                <span className="elapsed-time">{formatElapsedTime(webLLMElapsedTime)}</span>
-              </div>
-            ) : !running ? (
-              <div className="waiting-message">
-                <span className="info-icon">ℹ️</span>
-                Press START to also be a node
-              </div>
-            ) : null}
-          </div>
-
-          {/* MediaPipe Text Generation Test Card */}
-          <div className="http-test-card">  
-            <div className="http-test-top-line">
-              <div className="http-test-method">MEDIAPIPE</div>
-              <span className="http-test-service-name">HTTP REQUEST</span>
-            </div>
-            <div className="http-test-header">
-              <span className="http-test-title">gemma3-1b-it-int4</span>
-              <div className="card-actions">
-                <button 
-                  className={`play-button ${isMediaPipeProcessing ? 'processing' : ''}`}
-                  onClick={startMediaPipeProcessing}
-                  aria-label="Run MediaPipe test"
-                  disabled={isMediaPipeProcessing}
-                >
-                  <span className="play-icon">▶</span>
-                  <span className="tooltip">Run Test</span>
-                </button>
-              </div>
-            </div>
-           
-            {isMediaPipeProcessing ? (
-              <div className="processing-indicator">
-                <span className="spinner"></span>
-                {mediaPipeStatus}
-                <span className="elapsed-time">{formatElapsedTime(mediaPipeElapsedTime)}</span>
-              </div>
-            ) : mediaPipeStatus?.includes("Success") ? (
-              <div className="success-message">
-                <span className="check-icon">✓</span>
-                {mediaPipeStatus}
-                <span className="elapsed-time">{formatElapsedTime(mediaPipeElapsedTime)}</span>
-              </div>
-            ) : !running ? (
-              <div className="waiting-message">
-                <span className="info-icon">ℹ️</span>
-                Press START to also be a node
-              </div>
-            ) : null}
-          </div>
+          {renderTaskCard('speechRecognition', 'Speech Recognition', startSpeechRecognition)}
+          {renderTaskCard('textToSpeech', 'Text to Speech', startTextToSpeech)}
+          {renderTaskCard('translation', 'Translation', startTranslation)}
+          {renderTaskCard('textGeneration', 'Text Generation', startTextGeneration)}
         </div>
       </div>
     </div>
