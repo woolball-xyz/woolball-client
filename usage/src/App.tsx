@@ -59,7 +59,6 @@ function App() {
   const [connection, setConnection] = useState<'connected' | 'disconnected' | 'loading' | 'error'>('disconnected');
   const [running, setRunning] = useState(false);
   const wsManagerRef = useRef<WebSocketManager | null>(null);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [nodeCount, setNodeCount] = useState<number>(1);
   const [repoStars, setRepoStars] = useState<number | null>(null);
@@ -197,27 +196,6 @@ function App() {
     };
   }, []);
 
-  // Function to pre-load the audio file
-  const loadDefaultAudio = async () => {
-    try {
-      const response = await fetch('/input.wav');
-      if (response.ok) {
-        const blob = await response.blob();
-        const file = new File([blob], 'input.wav', { type: 'audio/wav' });
-        setAudioFile(file);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.log('Default audio file not found, waiting for manual selection');
-      return false;
-    }
-  };
-
-  useEffect(() => {
-    loadDefaultAudio();
-  }, []);
-
   useEffect(() => {
     if (running && containerRef.current) {
       containerRef.current.innerHTML = '';
@@ -325,7 +303,6 @@ function App() {
       const blob = await response.blob();
       const fileName = fixedAudioUrl.split('/').pop() || 'audio-file.mp3';
       const file = new File([blob], fileName, { type: 'audio/mpeg' });
-      setAudioFile(file);
       
       await processAudioFile(file, task);
       
@@ -989,7 +966,7 @@ function App() {
           {renderTaskCard('textToSpeech', 'Text to Speech', startTextToSpeech)}
           {renderTaskCard('translation', 'Translation', startTranslation)}
           {renderTaskCard('textGeneration', 'Text Generation', startTextGeneration)}
-        </div>
+          App.tsx(62,10)        </div>
       </div>
     </div>
   );
