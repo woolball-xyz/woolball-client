@@ -217,6 +217,7 @@
           </optgroup>
           <optgroup label="Other Engines">
             <option value="onnx-community/Kokoro-82M-ONNX">Kokoro TTS</option>
+            <option value="onnx-community/Kokoro-82M-v1.0-ONNX">Kokoro TTS</option>
           </optgroup>
         </select>
         
@@ -484,7 +485,7 @@
     
     // Show/hide voice options based on model selection
     ttsModelInput.addEventListener('change', function() {
-      if (this.value === 'onnx-community/Kokoro-82M-ONNX') {
+      if (this.value.includes('Kokoro')) {
         kokoroVoiceContainer.classList.remove('hidden');
       } else {
         kokoroVoiceContainer.classList.add('hidden');
