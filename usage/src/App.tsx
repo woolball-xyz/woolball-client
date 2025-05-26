@@ -966,7 +966,7 @@ function App() {
           {renderTaskCard('textToSpeech', 'Text to Speech', startTextToSpeech)}
           {renderTaskCard('translation', 'Translation', startTranslation)}
           {renderTaskCard('textGeneration', 'Text Generation', startTextGeneration)}
-          </div>
+        </div>
       </div>
     </div>
   );
