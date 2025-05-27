@@ -962,10 +962,10 @@ function App() {
       {/* Fixed bottom bar with 4 main task categories */}
       <div className="fixed-bottom-bar">
         <div className="test-cards-container">
-          {renderTaskCard('speechRecognition', 'Speech Recognition', startSpeechRecognition)}
-          {renderTaskCard('textToSpeech', 'Text to Speech', startTextToSpeech)}
-          {renderTaskCard('translation', 'Translation', startTranslation)}
           {renderTaskCard('textGeneration', 'Text Generation', startTextGeneration)}
+          {renderTaskCard('textToSpeech', 'Text to Speech', startTextToSpeech)}
+          {renderTaskCard('speechRecognition', 'Speech Recognition', startSpeechRecognition)}
+          {renderTaskCard('translation', 'Translation', startTranslation)}
         </div>
       </div>
     </div>
