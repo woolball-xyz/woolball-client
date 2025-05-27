@@ -61,6 +61,9 @@ function App() {
   const wsManagerRef = useRef<WebSocketManager | null>(null);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [nodeCount, setNodeCount] = useState<number>(1);
+  const [activeNodeCount, setActiveNodeCount] = useState<number>(0);
+  const [displayedNodeCount, setDisplayedNodeCount] = useState<number>(0);
+  const [isNodeCountChanging, setIsNodeCountChanging] = useState<boolean>(false);
   const [repoStars, setRepoStars] = useState<number | null>(null);
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
 
@@ -114,6 +117,9 @@ function App() {
     translation: null as number | null,
     textGeneration: null as number | null
   });
+
+  // Node count debounce timer
+  const nodeCountTimerRef = useRef<number | null>(null);
 
   // Model options for each task category
   const modelOptions = {
@@ -193,15 +199,56 @@ function App() {
           clearInterval(timerRef);
         }
       });
+      if (nodeCountTimerRef.current !== null) {
+        clearTimeout(nodeCountTimerRef.current);
+      }
     };
   }, []);
+
+  // Handle smooth node count transitions with debounce
+  useEffect(() => {
+    // If this is the first update or we're not currently in a debounce period
+    if (displayedNodeCount === 0 && activeNodeCount > 0) {
+      // Show immediately for the first time
+      setDisplayedNodeCount(activeNodeCount);
+      return;
+    }
+
+    // If there's already a timer running, clear it (new event arrived)
+    if (nodeCountTimerRef.current !== null) {
+      clearTimeout(nodeCountTimerRef.current);
+    }
+
+    // Only apply debounce if the value actually changed
+    if (activeNodeCount !== displayedNodeCount) {
+      setIsNodeCountChanging(true);
+      
+      // Wait 1 second before updating to the latest value
+      nodeCountTimerRef.current = window.setTimeout(() => {
+        setDisplayedNodeCount(activeNodeCount);
+        setIsNodeCountChanging(false);
+      }, 1000);
+    }
+
+    return () => {
+      if (nodeCountTimerRef.current !== null) {
+        clearTimeout(nodeCountTimerRef.current);
+      }
+    };
+  }, [activeNodeCount, displayedNodeCount]);
 
   useEffect(() => {
     if (running && containerRef.current) {
       containerRef.current.innerHTML = '';
       console.log(`🚀 Starting Woolball with ${nodeCount} node(s)`);
       console.log(`🔌 WebSocket URL from env: ${WEBSOCKET_URL}`);
-      wsManagerRef.current = new WebSocketManager(containerRef.current, setConnection, nodeCount);
+      // WebSocketManager will listen for node_count: events and update activeNodeCount
+      wsManagerRef.current = new WebSocketManager(
+        containerRef.current, 
+        setConnection, 
+        setActiveNodeCount,
+        nodeCount
+      );
       console.log(`📊 Node count: ${nodeCount}`);
     }
     if (!running && wsManagerRef.current) {
@@ -229,6 +276,9 @@ function App() {
     }
     
     setConnection('disconnected');
+    setActiveNodeCount(0);
+    setDisplayedNodeCount(0);
+    setIsNodeCountChanging(false);
   };
 
   const handleButton = () => {
@@ -928,9 +978,9 @@ function App() {
           </button>
           
           <div className="status-main-text">
-            <span className={`status-badge status-${connection}`}>
+            <span className={`status-badge status-${connection} ${isNodeCountChanging ? 'node-count-changing' : ''}`}>
               {connection === 'connected' 
-                ? `Connected to Woolball server with ${nodeCount} node${nodeCount !== 1 ? 's' : ''}` 
+                ? `Connected to Woolball server${displayedNodeCount > 0 ? ` • ${displayedNodeCount} active node${displayedNodeCount !== 1 ? 's' : ''}` : ''}`
                 : statusText}
             </span>
           </div>

@@ -6,6 +6,7 @@ export class WebSocketManager {
   private woolballInstances: Woolball[] = [];
   private eventsMap: Map<string, HTMLElement>;
   private onConnectionChange?: (status: 'connected' | 'disconnected' | 'loading' | 'error') => void;
+  private onNodeCountChange?: (nodeCount: number) => void;
   private nodeCount: number;
   private wsUrl: string;
 
@@ -228,6 +229,7 @@ export class WebSocketManager {
   constructor(
     containerElement: HTMLElement, 
     onConnectionChange?: (status: 'connected' | 'disconnected' | 'loading' | 'error') => void,
+    onNodeCountChange?: (nodeCount: number) => void,
     nodeCount: number = 1,
     wsUrl?: string
   ) {
@@ -235,6 +237,7 @@ export class WebSocketManager {
     this.nodeCount = nodeCount;
     this.eventsMap = new Map();
     this.onConnectionChange = onConnectionChange;
+    this.onNodeCountChange = onNodeCountChange;
     this.wsUrl = wsUrl || WEBSOCKET_URL;
 
     if (!this.isChromeBased()) {
@@ -334,6 +337,12 @@ export class WebSocketManager {
       instance.on('error', (evt: any) => {
         console.error(`Task error on instance #${index+1}:`, evt);
         this.renderEvent({ ...evt, status: 'error', instance: instanceId });
+      });
+
+      instance.on('node_count', (evt: any) => {
+        if (evt.nodeCount !== undefined && this.onNodeCountChange) {
+          this.onNodeCountChange(evt.nodeCount);
+        }
       });
     });
   }

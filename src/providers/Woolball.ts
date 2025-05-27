@@ -5,12 +5,13 @@ import workerCode from './transformers-js/worker-string';
 
 
 
-type TaskStatus = 'started' | 'success' | 'error';
+type TaskStatus = 'started' | 'success' | 'error' | 'node_count';
 
 type TaskEventData = {
     id: string;
     type: string;
     status: TaskStatus;
+    nodeCount?: number; // Optional field for node count events
 };
 
 type EventListener = (data: TaskEventData) => void;
@@ -30,6 +31,7 @@ class Woolball {
         this.eventListeners.set('started', new Set());
         this.eventListeners.set('success', new Set());
         this.eventListeners.set('error', new Set());
+        this.eventListeners.set('node_count', new Set());
         this.workerTypes = new Map();
         this.activeWorkers = new Set();
         
@@ -67,6 +69,7 @@ class Woolball {
         this.eventListeners.set('started', new Set());
         this.eventListeners.set('success', new Set());
         this.eventListeners.set('error', new Set());
+        this.eventListeners.set('node_count', new Set());
 
         // Clear worker types
         this.workerTypes.clear();
@@ -82,6 +85,22 @@ class Woolball {
         };
         this.wsConnection.onmessage = (event) => {
             if (event.data === 'ping') {
+                return;
+            }
+
+             // Check if this is a node_count event
+            if (event.data .startsWith('node_count:')) {
+                const nodeCountStr = event.data .split(':')[1];
+                const nodeCount = parseInt(nodeCountStr, 10);
+                
+                if (!isNaN(nodeCount)) {
+                    this.emitEvent('node_count', {
+                        id: '',
+                        type: 'node_count',
+                        status: 'node_count',
+                        nodeCount: nodeCount
+                    });
+                }
                 return;
             }
             this.handleWebSocketMessage(JSON.parse(event.data));
@@ -169,6 +188,7 @@ class Woolball {
     private sendWebSocketMessage(message: WebSocketMessage): boolean {
         if (this.wsConnection && this.wsConnection.readyState === WebSocket.OPEN) {
             this.wsConnection.send(JSON.stringify(message));
+            return true;
         }
         return false;
     }
