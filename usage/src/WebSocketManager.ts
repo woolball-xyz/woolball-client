@@ -48,7 +48,7 @@ export class WebSocketManager {
             <p>No dedicated graphics card needed!</p>
             
             <div class="modal-footer">
-              <a href="https://github.com/your-repo/issues" target="_blank" class="report-issue-button">
+              <a href="https://github.com/woolball-xyz/woolball-server/issues" target="_blank" class="report-issue-button">
                 Think this is a mistake? Let us know
               </a>
             </div>
