@@ -153,8 +153,8 @@ function App() {
       // Transformers.js Models
       { value: 'HuggingFaceTB/SmolLM2-135M-Instruct', label: 'SmolLM2 135M (Transformers)', provider: 'transformers' },
       { value: 'HuggingFaceTB/SmolLM2-360M-Instruct', label: 'SmolLM2 360M (Transformers)', provider: 'transformers' },
-      { value: 'Qwen/Qwen2.5-0.5B-Instruct', label: 'Qwen2.5 0.5B (Transformers)', provider: 'transformers' },
-      { value: 'Qwen/Qwen2.5-Coder-0.5B-Instruct', label: 'Qwen2.5 Coder 0.5B (Transformers)', provider: 'transformers' },
+      { value: 'Xenova/Qwen2.5-0.5B-Instruct', label: 'Qwen2.5 0.5B (Transformers)', provider: 'transformers' },
+      { value: 'Xenova/Qwen2.5-Coder-0.5B-Instruct', label: 'Qwen2.5 Coder 0.5B (Transformers)', provider: 'transformers' },
       // WebLLM Models
       { value: 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC', label: 'DeepSeek R1 Qwen 7B (WebLLM)', provider: 'webllm' },
       { value: 'DeepSeek-R1-Distill-Llama-8B-q4f16_1-MLC', label: 'DeepSeek R1 Llama 8B (WebLLM)', provider: 'webllm' },
@@ -240,8 +240,6 @@ function App() {
   useEffect(() => {
     if (running && containerRef.current) {
       containerRef.current.innerHTML = '';
-      console.log(`🚀 Starting Woolball with ${nodeCount} node(s)`);
-      console.log(`🔌 WebSocket URL from env: ${WEBSOCKET_URL}`);
       // WebSocketManager will listen for node_count: events and update activeNodeCount
       wsManagerRef.current = new WebSocketManager(
         containerRef.current, 
@@ -249,7 +247,6 @@ function App() {
         setActiveNodeCount,
         nodeCount
       );
-      console.log(`📊 Node count: ${nodeCount}`);
     }
     if (!running && wsManagerRef.current) {
       stopWebSocketManager();
