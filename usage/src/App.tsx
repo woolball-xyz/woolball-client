@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { WebSocketManager } from './WebSocketManager';
 import './App.css';
-import { WEBSOCKET_URL, API_URL } from './utils/env';
+import { API_URL } from './utils/env';
 
 // Define specific types for each task category
 interface SpeechRecognitionTask {
