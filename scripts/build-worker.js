@@ -13,18 +13,18 @@ if (!fs.existsSync('dist')) {
 }
 
 // Create a browser-compatible bundle for the worker using esbuild
-console.log('Creating transformers-js worker bundle...');
+console.log('Creating worker bundle...');
 execSync(
-  'npx esbuild src/providers/transformers-js/worker.ts --bundle --format=iife --platform=browser --target=es2020 --outfile=dist/transformers-js.js',
+  'npx esbuild src/providers/worker.ts --bundle --format=iife --platform=browser --target=es2020 --outfile=dist/worker-js.js',
   { stdio: 'inherit' }
 );
 
-console.log('Worker bundle created at dist/transformers-js.js');
+console.log('Worker bundle created at dist/worker-js.js');
 
 // Gere um módulo que exporta o código do worker como string
-const workerCode = fs.readFileSync('dist/transformers-js.js', 'utf-8');
+const workerCode = fs.readFileSync('dist/worker-js.js', 'utf-8');
 fs.writeFileSync(
-  'src/providers/transformers-js/worker-string.ts',
+  'src/providers/worker-string.ts',
   `const workerCode = ${JSON.stringify(workerCode)};\nexport default workerCode;\n`
 );
-console.log('Worker string module created at src/providers/transformers-js/worker-string.ts');
+console.log('Worker string module created at src/providers/worker-string.ts');

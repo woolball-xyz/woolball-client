@@ -4,7 +4,7 @@ export interface TaskData {
   input: string;
   model: string;
   dtype?: string;
-  provider?: 'transformers' | 'webllm' | 'mediapipe';  // Optional provider field to select backend implementation
+  provider?: 'transformers' | 'webllm' | 'mediapipe' | 'kokoro';
   [key: string]: any;
 }
 

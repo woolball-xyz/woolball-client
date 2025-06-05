@@ -1,33 +1,22 @@
 import { bufferToBase64, blobToArrayBuffer } from '../media';
 import { TaskData, TaskResult } from './types';
 
-const KOKORO_MODEL_ID = ['onnx-community/Kokoro-82M-ONNX', 'onnx-community/Kokoro-82M-v1.0-ONNX'];
 const SUPPORTED_MODEL_PREFIXES = ['xenova/mms-tts-', 'onnx-community/kokoro'];
 
 export async function tts(data: TaskData): Promise<TaskResult> {
-  const { input, model, dtype, ...options } = data;
-  
-  console.log('TTS function called with:', { input, model, dtype, ...options });
-  
+  const { input, model, dtype, provider = 'transformers', ...options } = data;
+
   try {
-    // Check supported models
-    const isKokoro = KOKORO_MODEL_ID.includes(model);
     const isSupportedModel = SUPPORTED_MODEL_PREFIXES.some(prefix => 
       model.toLowerCase().includes(prefix.toLowerCase())
     );
-    
-    console.log('Model analysis:', { isKokoro, isSupportedModel });
-    
-    // Warning for unrecognized models
-    if (!isKokoro && !isSupportedModel) {
+
+    if (!isSupportedModel) {
       console.warn('Model not explicitly recognized, trying to process:', model);
     }
-    
-    if (isKokoro) {
-      console.log('Using Kokoro processor for TTS');
+    if (provider === 'kokoro') {
       return await processKokoroTTS(input, model, dtype, options);
     } else {
-      console.log('Using Transformers processor for TTS with model:', model);
       return await processTransformersTTS(input, model, dtype, options);
     }
   } catch (error) {
@@ -52,8 +41,6 @@ async function processTransformersTTS(
   dtype?: string,
   options: Record<string, any> = {}
 ): Promise<TaskResult> {
-  console.log('processTransformersTTS started with:', { text, model, dtype });
-  
   try {
     const { pipeline } = await import('@huggingface/transformers');
     
@@ -104,15 +91,13 @@ async function processKokoroTTS(
     
     const tts = await KokoroTTS.from_pretrained(
       model,
-      { dtype: dtype || 'q8' }
+      { dtype: dtype || 'q8' }  as any
     );
     
     const audio = await tts.generate(text, {
       voice: options.voice
     });
-    
-    tts.dispose?.();
-    
+
     const audioBlob = audio.toBlob();
     const arrayBuffer = await blobToArrayBuffer(audioBlob);
     const base64Audio = bufferToBase64(arrayBuffer);

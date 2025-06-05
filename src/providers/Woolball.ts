@@ -1,7 +1,7 @@
 import { verifyBrowserCompatibility } from "../utils";
 import { WebSocketMessage, WorkerEvent } from "../utils/websocket";
 import Worker from 'web-worker';
-import workerCode from './transformers-js/worker-string';
+import workerCode from './worker-string';
 
 
 
