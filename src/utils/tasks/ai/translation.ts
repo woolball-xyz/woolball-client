@@ -1,10 +1,36 @@
 import { TaskData, TaskResult } from '../types';
 
 export async function translation(data: TaskData): Promise<TaskResult> {
-  const { input, model, srcLang, tgtLang, ...options } = data;
+  const { input, model, srcLang, tgtLang, provider, ...options } = data;
   
   if (!input || !srcLang || !tgtLang) {
     throw new Error("Required parameters: input, srcLang and tgtLang");
+  }
+  
+  if (provider === 'prompt-api' && 'Translator' in self) {
+    try {
+      const translatorCapabilities = await (self as any).Translator.availability({
+        sourceLanguage: srcLang,
+        targetLanguage: tgtLang,
+      });
+      
+      if (translatorCapabilities === 'available' || translatorCapabilities === 'downloadable') {
+        const translator = await (self as any).Translator.create({
+          sourceLanguage: srcLang,
+          targetLanguage: tgtLang,
+          monitor(m: any) {
+            m.addEventListener('downloadprogress', (e: any) => {
+              console.log(`Downloaded ${e.loaded * 100}%`);
+            });
+          },
+        });
+        
+        const translatedText = await translator.translate(input);
+        return { translatedText };
+      }
+    } catch (error) {
+      console.error('Chrome Translator API error:', error);
+    }
   }
   
   const { pipeline } = await import('@huggingface/transformers');

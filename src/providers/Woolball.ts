@@ -42,6 +42,15 @@ class Woolball {
         this.workerTypes.set('text-generation', workerCode);
         this.workerTypes.set('music-generation', workerCode);
         this.workerTypes.set('image-text-to-text', workerCode);
+        this.workerTypes.set('video-compression', workerCode);
+        this.workerTypes.set('audio-compression', workerCode);
+        this.workerTypes.set('image-compression', workerCode);
+        this.workerTypes.set('video-conversion', workerCode);
+        this.workerTypes.set('audio-conversion', workerCode);
+        this.workerTypes.set('image-conversion', workerCode);
+        this.workerTypes.set('media-conversion', workerCode);
+        this.workerTypes.set('browser-speech-recognition', workerCode);
+        this.workerTypes.set('browser-speech-synthesis', workerCode);
     }
 
     public start(): void {

@@ -1,6 +1,6 @@
 import { TaskData, TaskResult, TaskType, taskProcessors } from '../utils/tasks';
 
-export const BROWSER_TASKS = ['image-generation', 'char-to-image'];
+export const BROWSER_TASKS = ['image-generation', 'char-to-image', 'video-conversion', 'audio-conversion', 'image-conversion', 'media-conversion', 'browser-speech-recognition', 'browser-speech-synthesis'];
 
 export const isBrowserTask = (taskType: string): boolean => {
   return BROWSER_TASKS.includes(taskType);
