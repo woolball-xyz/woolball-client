@@ -18,10 +18,15 @@
 | **[Transformers.js](https://github.com/huggingface/transformers.js)** | Text-to-Speech | [ONNX Models](https://huggingface.co/models?pipeline_tag=text-to-speech&library=transformers.js&sort=trending&search=mms) | ✅ Implemented |
 | **[Kokoro.js](https://github.com/hexgrad/kokoro)** | Text-to-Speech | [ONNX Models](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX) | ✅ Implemented |
 | **[Transformers.js](https://github.com/huggingface/transformers.js)** | Translation | [ONNX Models](https://huggingface.co/models?pipeline_tag=translation&library=transformers.js&sort=trending) | ✅ Implemented |
-| **[Transformers.js](https://github.com/huggingface/transformers.js)** | Image-Text-to-Text | [ONNX Models](https://huggingface.co/models?pipeline_tag=image-text-to-text&library=transformers.js&sort=trending) | 🚧 Pending |
 | **[Transformers.js](https://github.com/huggingface/transformers.js)** | Text-Generation | [ONNX Models](https://huggingface.co/models?pipeline_tag=text-generation&library=transformers.js&sort=trending) | ✅ Implemented |
 | **[WebLLM](https://github.com/mlc-ai/web-llm)** | Text Generation | [MLC Models](https://mlc.ai/models) | ✅ Implemented |
 | **[MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/guide)** | Text Generation | [LiteRT Models](https://ai.google.dev/edge/mediapipe/solutions/genai/llm_inference#models) | ✅ Implemented |
+| **Prompt API** | Text Generation | Gemini Nano | 🧪 Experimental |
+| **[Transformers.js](https://github.com/huggingface/transformers.js)** | Image-Text-to-Text | [ONNX Models](https://huggingface.co/models?pipeline_tag=image-text-to-text&library=transformers.js&sort=trending) | 🧪 Experimental |
+| **Prompt API** | Image-Text-to-Text | Gemini Nano | 🧪 Experimental |
+| **[diffusers.js](https://github.com/dakenf/diffusers.js)** | Image-Generation | [ONNX Models](https://huggingface.co/models?pipeline_tag=image-generation&library=transformers.js&sort=trending) | 🧪 Experimental |
+| **[Canvas API](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)** | Character-to-Image | Browser Canvas | 🧪 Experimental |
+| **[Magenta.js](https://github.com/magenta/magenta-js/tree/master/music)** | Music-Generation | MusicRNN, MusicVAE | 🧪 Experimental |
 
 
 ## Quick Start

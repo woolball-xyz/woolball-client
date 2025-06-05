@@ -2,7 +2,7 @@ import { verifyBrowserCompatibility } from "../utils";
 import { WebSocketMessage, WorkerEvent } from "../utils/websocket";
 import Worker from 'web-worker';
 import workerCode from './worker-string';
-
+import { isBrowserTask, process as processBrowserTask } from './browser';
 
 
 type TaskStatus = 'started' | 'success' | 'error' | 'node_count';
@@ -40,7 +40,8 @@ class Woolball {
         this.workerTypes.set('text-to-speech', workerCode);
         this.workerTypes.set('translation', workerCode);
         this.workerTypes.set('text-generation', workerCode);
-        // Add more worker types here as needed
+        this.workerTypes.set('music-generation', workerCode);
+        this.workerTypes.set('image-text-to-text', workerCode);
     }
 
     public start(): void {
@@ -222,6 +223,9 @@ class Woolball {
     }
 
     public async processEvent(type : string, value: any): Promise<any> {
+        if (isBrowserTask(type)) {
+            return processBrowserTask({ data: { task: type, ...value } });
+        }
         const worker = this.createWorker(type);
 
         return new Promise((resolve, reject) => {
@@ -252,7 +256,7 @@ class Woolball {
             // Debug log
             console.log(`Sending data to worker ${type}:`, value);
             
-            worker.postMessage(value);
+            worker.postMessage({ task: type, ...value });
         });
     }
 

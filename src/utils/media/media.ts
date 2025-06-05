@@ -58,3 +58,19 @@ export function bufferToBase64(buffer: ArrayBuffer): string {
   }
   return btoa(binary);
 }
+
+/**
+ * Converte uma string base64 para um objeto Blob
+ * @param base64 String base64 para converter
+ * @param tipo Tipo MIME do blob resultante
+ * @returns Blob resultante
+ */
+export function base64ToBlob(base64: string, tipo = 'image/png'): Blob {
+  const binario = atob(base64);
+  const tamanho = binario.length;
+  const bytes = new Uint8Array(tamanho);
+  for (let i = 0; i < tamanho; i++) {
+    bytes[i] = binario.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: tipo });
+}

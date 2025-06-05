@@ -1,4 +1,4 @@
-import { TaskData, TaskResult } from './types';
+import { TaskData, TaskResult } from '../types';
 
 export async function translation(data: TaskData): Promise<TaskResult> {
   const { input, model, srcLang, tgtLang, ...options } = data;

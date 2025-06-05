@@ -1,5 +1,5 @@
-import { bufferToBase64, blobToArrayBuffer } from '../media';
-import { TaskData, TaskResult } from './types';
+import { bufferToBase64, blobToArrayBuffer } from '../../media';
+import { TaskData, TaskResult } from '../types';
 
 const SUPPORTED_MODEL_PREFIXES = ['xenova/mms-tts-', 'onnx-community/kokoro'];
 

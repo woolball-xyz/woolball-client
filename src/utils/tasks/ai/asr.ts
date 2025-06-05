@@ -1,5 +1,5 @@
-import { processAudio } from '../media';
-import { TaskData, TaskResult } from './types';
+import { processAudio } from '../../media';
+import { TaskData, TaskResult } from '../types';
 
 export async function asr(data: TaskData): Promise<TaskResult> {
   const { input, model, dtype, ...options } = data;
