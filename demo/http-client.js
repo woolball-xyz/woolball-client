@@ -56,12 +56,18 @@ export class HttpClient {
       formData.append('stream', options.stream ? 'true' : 'false');
     }
     
+    // Set the provider for TTS (transformers or kokoro)
+    if (options.provider) {
+      formData.append('provider', options.provider);
+    }
+    
     console.log('Sending TTS request:', {
       text,
       model: options.model,
       dtype: options.dtype,
       voice: options.voice,
-      stream: options.stream
+      stream: options.stream,
+      provider: options.provider
     });
     
     const response = await fetch(`${this.apiUrl}/api/v1/text-to-speech`, {

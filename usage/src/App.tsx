@@ -23,6 +23,7 @@ interface TextToSpeechTask {
   dtype: string;
   voice: string;
   enableStreaming: boolean;
+  provider: string;
 }
 
 interface TranslationTask {
@@ -86,7 +87,8 @@ function App() {
       model: 'Xenova/mms-tts-eng',
       dtype: 'q8',
       voice: 'af_heart',
-      enableStreaming: false
+      enableStreaming: false,
+      provider: 'transformers'
     },
     translation: {
       isProcessing: false,
@@ -130,21 +132,21 @@ function App() {
     ],
     textToSpeech: [
       // MMS Models (Multilingual)
-      { value: 'Xenova/mms-tts-eng', label: 'English (MMS)' },
-      { value: 'Xenova/mms-tts-spa', label: 'Spanish (MMS)' },
-      { value: 'Xenova/mms-tts-por', label: 'Portuguese (MMS)' },
-      { value: 'Xenova/mms-tts-fra', label: 'French (MMS)' },
-      { value: 'Xenova/mms-tts-deu', label: 'German (MMS)' },
-      { value: 'Xenova/mms-tts-rus', label: 'Russian (MMS)' },
-      { value: 'Xenova/mms-tts-ara', label: 'Arabic (MMS)' },
-      { value: 'Xenova/mms-tts-hin', label: 'Hindi (MMS)' },
-      { value: 'Xenova/mms-tts-kor', label: 'Korean (MMS)' },
-      { value: 'Xenova/mms-tts-vie', label: 'Vietnamese (MMS)' },
-      { value: 'Xenova/mms-tts-ron', label: 'Romanian (MMS)' },
-      { value: 'Xenova/mms-tts-yor', label: 'Yoruba (MMS)' },
+      { value: 'Xenova/mms-tts-eng', label: 'English (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-spa', label: 'Spanish (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-por', label: 'Portuguese (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-fra', label: 'French (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-deu', label: 'German (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-rus', label: 'Russian (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-ara', label: 'Arabic (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-hin', label: 'Hindi (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-kor', label: 'Korean (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-vie', label: 'Vietnamese (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-ron', label: 'Romanian (MMS)', provider: 'transformers' },
+      { value: 'Xenova/mms-tts-yor', label: 'Yoruba (MMS)', provider: 'transformers' },
       // Kokoro Models (High Quality)
-      { value: 'onnx-community/Kokoro-82M-ONNX', label: 'Kokoro TTS' },
-      { value: 'onnx-community/Kokoro-82M-v1.0-ONNX', label: 'Kokoro TTS v1.0' }
+      { value: 'onnx-community/Kokoro-82M-ONNX', label: 'Kokoro TTS', provider: 'kokoro' },
+      { value: 'onnx-community/Kokoro-82M-v1.0-ONNX', label: 'Kokoro TTS v1.0', provider: 'kokoro' }
     ],
     translation: [
       { value: 'Xenova/nllb-200-distilled-600M', label: 'NLLB-200 Distilled 600M' }
@@ -468,9 +470,10 @@ function App() {
       formData.append('input', fixedText);
       formData.append('model', task.model);
       formData.append('dtype', task.dtype);
+      formData.append('provider', task.provider);
       
       // Only include voice parameter if Kokoro is selected
-      if (task.model.includes('Kokoro')) {
+      if (task.provider === 'kokoro') {
         formData.append('voice', task.voice);
       }
       
@@ -728,9 +731,10 @@ function App() {
   -H "Content-Type: multipart/form-data" \\
   -F "input=your text to synthesize" \\
   -F "model=${ttsTask.model}" \\
-  -F "dtype=${ttsTask.dtype}"`;
-        if (ttsTask.model.includes('Kokoro')) {
-          ttsCmd += ` \\
+  -F "dtype=${ttsTask.dtype}" \\
+  -F "provider=${ttsTask.provider}"`;
+        if (ttsTask.provider === 'kokoro') {
+          ttsCmd += ` \
   -F "voice=${ttsTask.voice}"`;
         }
         return ttsCmd;
