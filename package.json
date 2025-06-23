@@ -1,6 +1,6 @@
 {
   "name": "woolball-client",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "description": "Client-side library for Woolball enabling secure browser resource sharing for distributed AI task processing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -53,11 +53,10 @@
     "typescript": "^4.9.5"
   },
   "dependencies": {
-    "@aislamov/diffusers.js": "^0.9.3",
     "@huggingface/transformers": "^3.5.0",
-    "@magenta/music": "^1.23.1",
     "@mediapipe/tasks-genai": "^0.10.23",
     "@mlc-ai/web-llm": "^0.2.79",
+    "buffer": "^6.0.3",
     "kokoro-js": "^1.2.1",
     "wav-encoder": "^1.3.0",
     "wavefile": "^11.0.0",

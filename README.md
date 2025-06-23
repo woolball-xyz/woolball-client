@@ -25,23 +25,13 @@
 | **Prompt API** | Text Generation | Gemini Nano | 🧪 Experimental |
 | **[Transformers.js](https://github.com/huggingface/transformers.js)** | Image-Text-to-Text | [ONNX Models](https://huggingface.co/models?pipeline_tag=image-text-to-text&library=transformers.js&sort=trending) | ⚠️ Partial |
 | **Prompt API** | Image-Text-to-Text | Gemini Nano | 🧪 Experimental |
-| **[diffusers.js](https://github.com/dakenf/diffusers.js)** | Image-Generation | [ONNX Models](https://huggingface.co/models?pipeline_tag=image-generation&library=transformers.js&sort=trending) | 🧪 Experimental |
-| **[Magenta.js](https://github.com/magenta/magenta-js/tree/master/music)** | Music-Generation | MusicRNN, MusicVAE | 🧪 Experimental |
 
-### Browser API Tasks
+## Browser API Tasks
 
-| Provider | Task | Description | Status |
-|----------|------|-------------|--------|
-| **[Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API)** | Speech Recognition | Converts spoken audio to text using browser's speech recognition | 🧪 Experimental |
-| **[Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API)** | Speech Synthesis | Converts text to spoken audio using browser's speech synthesis | 🧪 Experimental |
-| **[Canvas API](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)** | Character-to-Image | Renders text characters as images using browser Canvas | 🧪 Experimental |
-| **[WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API)** | Image Compression | Compresses images using browser WebCodecs | 🧪 Experimental |
-| **[WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API)** | Audio Compression | Compresses audio using browser WebCodecs | 🧪 Experimental |
-| **[WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API)** | Video Compression | Compresses video using browser WebCodecs | 🧪 Experimental |
-| **[WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API)** | Image Conversion | Converts images between formats (WebP, JPEG, PNG, AVIF) | 🧪 Experimental |
-| **[WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API)** | Audio Conversion | Converts audio between formats (Opus, AAC, MP3) | 🧪 Experimental |
-| **[WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API)** | Video Conversion | Converts video between formats (VP9, VP8, H.264, AV1) | 🧪 Experimental |
-| **[WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API)** | Media Conversion | Converts mixed media (audio+video) between formats | 🧪 Experimental |
+| API | Task | Description | Status |
+|-----|------|-------------|--------|
+| **Canvas API** | Character-to-Image | Converts a character to an image | ✅ Implemented |
+| **Canvas API** | HTML-to-Image | Converts HTML content to an image | ✅ Implemented |
 
 ## Quick Start
 

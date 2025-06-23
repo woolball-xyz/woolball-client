@@ -2,7 +2,7 @@ import { verifyBrowserCompatibility } from "../utils";
 import { WebSocketMessage, WorkerEvent } from "../utils/websocket";
 import Worker from 'web-worker';
 import workerCode from './worker-string';
-import { isBrowserTask, process as processBrowserTask } from './browser';
+import { taskProcessors } from '../utils/tasks';
 
 
 type TaskStatus = 'started' | 'success' | 'error' | 'node_count';
@@ -11,16 +11,31 @@ type TaskEventData = {
     id: string;
     type: string;
     status: TaskStatus;
-    nodeCount?: number; // Optional field for node count events
+    nodeCount?: number;
 };
 
 type EventListener = (data: TaskEventData) => void;
+
+type TaskConfig = {
+    type: 'worker' | 'browser';
+    handler: string | Function;
+};
+
+const TASK_CONFIGS: Record<string, TaskConfig> = {
+    'automatic-speech-recognition': { type: 'worker', handler: workerCode },
+    'text-to-speech': { type: 'worker', handler: workerCode },
+    'translation': { type: 'worker', handler: workerCode },
+    'text-generation': { type: 'worker', handler: workerCode },
+    'image-text-to-text': { type: 'worker', handler: workerCode },
+    'char-to-image': { type: 'browser', handler: taskProcessors['char-to-image'] },
+    'html-to-image': { type: 'browser', handler: taskProcessors['html-to-image'] },
+};
 
 class Woolball {
     private wsConnection: WebSocket | null = null;
     private clientId: string;
     private eventListeners: Map<TaskStatus, Set<EventListener>> = new Map();
-    private workerTypes: Map<string, string>;
+    private workerTypes: Map<string, string | Function>;
     private wsUrl: string;
     private activeWorkers: Set<Worker>;
 
@@ -35,22 +50,9 @@ class Woolball {
         this.workerTypes = new Map();
         this.activeWorkers = new Set();
         
-        // Register available worker types
-        this.workerTypes.set('automatic-speech-recognition', workerCode);
-        this.workerTypes.set('text-to-speech', workerCode);
-        this.workerTypes.set('translation', workerCode);
-        this.workerTypes.set('text-generation', workerCode);
-        this.workerTypes.set('music-generation', workerCode);
-        this.workerTypes.set('image-text-to-text', workerCode);
-        this.workerTypes.set('video-compression', workerCode);
-        this.workerTypes.set('audio-compression', workerCode);
-        this.workerTypes.set('image-compression', workerCode);
-        this.workerTypes.set('video-conversion', workerCode);
-        this.workerTypes.set('audio-conversion', workerCode);
-        this.workerTypes.set('image-conversion', workerCode);
-        this.workerTypes.set('media-conversion', workerCode);
-        this.workerTypes.set('browser-speech-recognition', workerCode);
-        this.workerTypes.set('browser-speech-synthesis', workerCode);
+        Object.entries(TASK_CONFIGS).forEach(([taskType, config]) => {
+            this.workerTypes.set(taskType, config.handler);
+        });
     }
 
     public start(): void {
@@ -62,26 +64,22 @@ class Woolball {
     }
 
     public destroy(): void {
-        // Close WebSocket connection if it exists
         if (this.wsConnection) {
             this.wsConnection.close();
             this.wsConnection = null;
         }
-
-        // Terminate all active workers
+        
         this.activeWorkers.forEach(worker => {
             worker.terminate();
         });
         this.activeWorkers.clear();
-
-        // Clear all event listeners
+        
         this.eventListeners.clear();
         this.eventListeners.set('started', new Set());
         this.eventListeners.set('success', new Set());
         this.eventListeners.set('error', new Set());
         this.eventListeners.set('node_count', new Set());
-
-        // Clear worker types
+        
         this.workerTypes.clear();
     }
     
@@ -98,9 +96,8 @@ class Woolball {
                 return;
             }
 
-             // Check if this is a node_count event
-            if (event.data .startsWith('node_count:')) {
-                const nodeCountStr = event.data .split(':')[1];
+            if (event.data.startsWith('node_count:')) {
+                const nodeCountStr = event.data.split(':')[1];
                 const nodeCount = parseInt(nodeCountStr, 10);
                 
                 if (!isNaN(nodeCount)) {
@@ -113,7 +110,12 @@ class Woolball {
                 }
                 return;
             }
-            this.handleWebSocketMessage(JSON.parse(event.data));
+            try {
+                this.handleWebSocketMessage(JSON.parse(event.data));
+            } catch (parseError) {
+                console.error('Failed to parse WebSocket message:', parseError);
+                console.error('Raw message:', event.data);
+            }
         };
         this.wsConnection.onerror = (error) => {
             console.error('WebSocket error:', error);
@@ -151,7 +153,6 @@ class Woolball {
                     status: 'error' as TaskStatus,
                 };
 
-                // Show detailed errors in main console
                 console.error(`Error processing ${Key}:`, response.error);
                 
                 this.emitEvent('error', errorData);
@@ -213,11 +214,14 @@ class Woolball {
             throw new Error(`Worker type not found: ${type}`);
         }
 
+        if (typeof workerCode !== 'string') {
+            throw new Error(`Cannot create worker for browser task: ${type}`);
+        }
+
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         const workerUrl = URL.createObjectURL(blob);
         const worker = new Worker(workerUrl);
         
-        // Add error listener to capture worker errors
         worker.addEventListener('error', (err) => {
             console.error('Worker error:', err);
         });
@@ -232,9 +236,31 @@ class Woolball {
     }
 
     public async processEvent(type : string, value: any): Promise<any> {
-        if (isBrowserTask(type)) {
-            return processBrowserTask({ data: { task: type, ...value } });
+        const taskConfig = TASK_CONFIGS[type];
+        if (!taskConfig) {
+            throw new Error(`Task type not found: ${type}`);
         }
+
+        for (const key in value) {
+            if (value[key] === 'true') {
+                value[key] = true;
+            }
+            if (value[key] === 'false') {
+                value[key] = false;
+            }
+        }
+
+        if (taskConfig.type === 'browser') {
+            try {
+                const result = await (taskConfig.handler as Function)(value);
+                return result;
+            } catch (processorError) {
+                console.error(`[Browser] Error in ${type} processor:`, processorError);
+                const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
+                return { error: errorMessage };
+            }
+        }
+
         const worker = this.createWorker(type);
 
         return new Promise((resolve, reject) => {
@@ -243,7 +269,6 @@ class Woolball {
                 worker.removeEventListener('error', errorHandler);
                 this.terminateWorker(worker);
                 
-                // Log worker response for debugging
                 if (e.data.error) {
                     console.error(`Worker ${type} error:`, e.data.error);
                 }
@@ -262,7 +287,6 @@ class Woolball {
             worker.addEventListener('message', messageHandler);
             worker.addEventListener('error', errorHandler);
             
-            // Debug log
             console.log(`Sending data to worker ${type}:`, value);
             
             worker.postMessage({ task: type, ...value });
