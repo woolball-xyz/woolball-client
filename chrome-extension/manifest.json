@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Woolball Client",
+  "version": "0.1.0",
+  "description": "Woolball AI",
+  "icons": {
+    "128": "icon.svg"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.svg",
+    "default_width": 500
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "ws://*/*",
+    "wss://*/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

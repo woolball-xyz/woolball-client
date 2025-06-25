@@ -48,35 +48,62 @@ import Woolball from 'woolball-client';
 const woolball = new Woolball('your-client-id', 'ws.server.com'); // ws://localhost:9003 by default
 
 // Listen for task events
-woolball.on('started', (event) => {
-  console.log('Task started:', event.id);
-});
-
-woolball.on('success', (event) => {
-  console.log('Task completed:', event.id);
-});
-
-woolball.on('error', (event) => {
-  console.log('Task failed:', event.id);
-});
 ```
 
-## Local Development
+## Usage Options
 
-1. Build the project:
+### Web Application
+
+See the `usage` directory for a complete React-based web application example that demonstrates how to integrate the Woolball client into a web application.
+
+### Chrome Extension
+
+A Chrome extension is available in the `chrome-extension` directory, allowing users to contribute their browser's computing resources to a Woolball server while browsing.
+
+To build and use the Chrome extension:
+
 ```bash
+# Build the Woolball client library
 npm run build:all
+
+# Install extension dependencies
+cd chrome-extension
+npm install
+
+# Build the extension
+npm run build
 ```
 
-2. Start the demo server:
+Then load the extension in Chrome from the `chrome-extension/dist` directory.
+
+### Demo Pages
+
+Simple demo pages are available in the `demo` directory:
+
 ```bash
+# Serve the demo pages
 npm run serve:demo
 ```
 
-This will start an HTTP server on port 3000. Access the demo applications in your browser:
+## Development
 
-- WebSocket Demo: http://localhost:3000/demo/websocket.html
-- HTTP Demo: http://localhost:3000/demo/http.html
+```bash
+# Install dependencies
+npm install
+
+# Build the library
+npm run build:all
+
+# Run tests
+npm test
+
+# Run end-to-end tests
+npm run test:e2e
+```
+
+## License
+
+This project is licensed under the MPL-2.0 License - see the LICENSE file for details.
 
 
 

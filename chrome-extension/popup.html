@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=500, initial-scale=1.0">
+  <title>Woolball Client</title>
+  <link rel="stylesheet" href="styles/popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Woolball Client</h1>
+      <p class="subtitle">AI Task Processing</p>
+    </div>
+    
+    <div class="status-container">
+      <div class="status-indicator">
+        <span id="status-dot" class="status-dot"></span>
+        <span id="status-text">Disconnected</span>
+      </div>
+      <div class="server-info">
+        <input type="text" id="server-url" placeholder="ws://localhost:9003/ws" value="ws://localhost:9003/ws">
+        <button id="connect-btn">Connect</button>
+      </div>
+      <div class="woolball-status-container">
+        <span id="woolball-status">Woolball not initialized</span>
+      </div>
+    </div>
+
+    <div class="stats-container">
+      <div class="stat-box centered-stat">
+        <span class="stat-label">Processed Tasks</span>
+        <span id="tasks-completed" class="stat-value">0</span>
+      </div>
+    </div>
+
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,7 +1,8 @@
 import { verifyBrowserCompatibility } from "../utils";
 import { WebSocketMessage, WorkerEvent } from "../utils/websocket";
-import Worker from 'web-worker';
+import * as WebWorker from 'web-worker';
 import workerCode from './worker-string';
+
 import { taskProcessors } from '../utils/tasks';
 
 
@@ -21,6 +22,10 @@ type TaskConfig = {
     handler: string | Function;
 };
 
+interface WoolballOptions {
+    environment?: 'extension' | 'web' | 'node';
+}
+
 const TASK_CONFIGS: Record<string, TaskConfig> = {
     'automatic-speech-recognition': { type: 'worker', handler: workerCode },
     'text-to-speech': { type: 'worker', handler: workerCode },
@@ -38,9 +43,19 @@ class Woolball {
     private workerTypes: Map<string, string | Function>;
     private wsUrl: string;
     private activeWorkers: Set<Worker>;
+    private options: WoolballOptions;
 
-    constructor(id : string, url = 'ws://localhost:9003/ws') {
-        verifyBrowserCompatibility();
+    constructor(id : string, url = 'ws://localhost:9003/ws', options: WoolballOptions = {}) {
+        this.options = options;
+        
+        if (this.options.environment === 'extension') {
+            console.log('Initializing Woolball in Chrome extension environment');
+        } else if (this.options.environment === 'node') {
+            console.log('Initializing Woolball in Node.js environment');
+        } else {
+            verifyBrowserCompatibility();
+        }
+        
         this.clientId = id;
         this.wsUrl = url;
         this.eventListeners.set('started', new Set());
@@ -204,34 +219,37 @@ class Woolball {
         return false;
     }
 
-    private createWorker(type: string): Worker {
-        if (typeof window === 'undefined') {
-            throw new Error('Environment not supported for Web Workers');
-        }
+    public setWorkerSource(type: string, source: string | Function): void {
+        this.workerTypes.set(type, source);
+    }
 
-        const workerCode = this.workerTypes.get(type);
-        if (!workerCode) {
+    private createWorker(type: string): Worker {
+        const workerSource = this.workerTypes.get(type);
+        if (!workerSource) {
             throw new Error(`Worker type not found: ${type}`);
         }
 
-        if (typeof workerCode !== 'string') {
-            throw new Error(`Cannot create worker for browser task: ${type}`);
+        try {
+            const blob = new Blob([workerSource as string], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            
+            const worker = new (WebWorker as any)(workerUrl);
+            URL.revokeObjectURL(workerUrl);
+            
+            this.activeWorkers.add(worker);
+            return worker;
+        } catch (error: any) {
+            console.error('Error creating worker:', error);
+            throw new Error(`Failed to create worker: ${error.message || 'Unknown error'}`);
         }
-
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        const workerUrl = URL.createObjectURL(blob);
-        const worker = new Worker(workerUrl);
-        
-        worker.addEventListener('error', (err) => {
-            console.error('Worker error:', err);
-        });
-        
-        this.activeWorkers.add(worker);
-        return worker;
     }
 
-    private terminateWorker(worker: Worker): void {
+    private terminateWorker(worker: Worker & { _blobUrl?: string }): void {
         worker.terminate();
+        if (worker._blobUrl) {
+            URL.revokeObjectURL(worker._blobUrl);
+            delete worker._blobUrl;
+        }
         this.activeWorkers.delete(worker);
     }
 
@@ -240,6 +258,7 @@ class Woolball {
         if (!taskConfig) {
             throw new Error(`Task type not found: ${type}`);
         }
+        const isWorkerTask = !taskConfig.type || taskConfig.type === 'worker';
 
         for (const key in value) {
             if (value[key] === 'true') {
@@ -250,12 +269,36 @@ class Woolball {
             }
         }
 
+        if (taskConfig.type === 'browser' && typeof window === 'undefined') {
+            return { error: `Task type '${type}' is not supported in this environment` };
+        }
+
         if (taskConfig.type === 'browser') {
             try {
                 const result = await (taskConfig.handler as Function)(value);
                 return result;
             } catch (processorError) {
                 console.error(`[Browser] Error in ${type} processor:`, processorError);
+                const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
+                return { error: errorMessage };
+            }
+        }
+
+        if (!isWorkerTask) {
+            return { error: `Task type '${type}' is not supported` };
+        }
+
+        if (this.options.environment === 'extension') {
+            try {
+                const processor = taskProcessors[type as keyof typeof taskProcessors];
+                if (!processor) {
+                    throw new Error(`Processor not found for task: ${type}`);
+                }
+                
+                const taskData = { task: type, ...value };
+                const result = await processor(taskData);
+                return result;
+            } catch (processorError) {
                 const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
                 return { error: errorMessage };
             }
@@ -270,26 +313,24 @@ class Woolball {
                 this.terminateWorker(worker);
                 
                 if (e.data.error) {
-                    console.error(`Worker ${type} error:`, e.data.error);
+                    resolve({ error: e.data.error });
+                } else {
+                    resolve(e.data);
                 }
-                
-                resolve(e.data);
             };
 
-            const errorHandler = (error: ErrorEvent) => {
-                console.error(`Worker ${type} execution error:`, error);
+            const errorHandler = (e: ErrorEvent) => {
                 worker.removeEventListener('message', messageHandler);
                 worker.removeEventListener('error', errorHandler);
                 this.terminateWorker(worker);
-                reject(error);
+                
+                const errorMessage = e.message || 'Unknown worker error';
+                resolve({ error: errorMessage });
             };
 
             worker.addEventListener('message', messageHandler);
             worker.addEventListener('error', errorHandler);
-            
-            console.log(`Sending data to worker ${type}:`, value);
-            
-            worker.postMessage({ task: type, ...value });
+            worker.postMessage(value);
         });
     }
 

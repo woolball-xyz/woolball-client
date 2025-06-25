@@ -60,21 +60,31 @@ async function handleWebLLM(messages: any[], model: string, stream: boolean, tem
 }
 
 async function handleMediaPipe(messages: any[], model: string, stream: boolean, temperature: number, options: any): Promise<TaskResult> {
-  const { FilesetResolver, LlmInference } = await import('@mediapipe/tasks-genai');
-  
-  if (!mediaPipeLLM) {
-    const genaiFileset = await FilesetResolver.forGenAiTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai/wasm');
-    const mediaPipeOptions: any = {
-      baseOptions: { modelAssetPath: model },
-      temperature: parseFloat(temperature.toString()),
-      ...Object.fromEntries(
-        Object.entries(options)
-          .filter(([key]) => ['maxTokens', 'randomSeed', 'topK'].includes(key))
-          .map(([key, value]) => [key, parseInt(value as string)])
-      )
-    };
+  try {
+    const { FilesetResolver, LlmInference } = await import('@mediapipe/tasks-genai');
     
-    mediaPipeLLM = await LlmInference.createFromOptions(genaiFileset, mediaPipeOptions);
+    if (!mediaPipeLLM) {
+      
+      const wasmPath = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai/wasm';
+      
+      const genaiFileset = await FilesetResolver.forGenAiTasks(wasmPath);
+      const mediaPipeOptions: any = {
+        baseOptions: { modelAssetPath: model },
+        temperature: parseFloat(temperature.toString()),
+        ...Object.fromEntries(
+          Object.entries(options)
+            .filter(([key]) => ['maxTokens', 'randomSeed', 'topK'].includes(key))
+            .map(([key, value]) => [key, parseInt(value as string)])
+        )
+      };
+      
+      mediaPipeLLM = await LlmInference.createFromOptions(genaiFileset, mediaPipeOptions);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('importScripts')) {
+      throw error;
+    }
+    throw new Error(`MediaPipe initialization failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   const lastUserMessage = messages.filter((msg: any) => msg.role === 'user').pop()?.content || '';
