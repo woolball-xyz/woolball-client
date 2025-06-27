@@ -75,8 +75,8 @@ jobs:
     - name: Build and push Docker image
       run: |
          if [ ${{ github.ref }} = 'refs/heads/main' ]; then
-          docker compose -f usage/docker-compose.yml build
-          docker compose -f usage/docker-compose.yml push
+          docker compose -f browser-ui/docker-compose.yml build
+          docker compose -f browser-ui/docker-compose.yml push
          else  
-          docker compose -f usage/docker-compose.yml build
+          docker compose -f browser-ui/docker-compose.yml build
          fi
