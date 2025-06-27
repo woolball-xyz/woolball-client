@@ -13,9 +13,9 @@
     "docker:publish": "docker-compose build && docker-compose push"
   },
   "dependencies": {
-    "react": "^19.0.0", 
+    "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "woolball-client": "^0.1.36"
+    "woolball-client": "^0.1.38"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",

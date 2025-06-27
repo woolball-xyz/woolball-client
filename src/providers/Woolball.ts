@@ -1,9 +1,8 @@
 import { verifyBrowserCompatibility } from "../utils";
 import { WebSocketMessage, WorkerEvent } from "../utils/websocket";
-import * as WebWorker from 'web-worker';
-import workerCode from './worker-string';
-
-import { taskProcessors } from '../utils/tasks';
+import Worker from 'web-worker';
+import { TaskType, taskProcessors } from '../utils/tasks';
+import { Environment, ExecutionType, TASK_CONFIGS, getTaskExecutionType, getTaskHandler } from './TaskAvailability';
 
 
 type TaskStatus = 'started' | 'success' | 'error' | 'node_count';
@@ -17,24 +16,13 @@ type TaskEventData = {
 
 type EventListener = (data: TaskEventData) => void;
 
-type TaskConfig = {
-    type: 'worker' | 'browser';
-    handler: string | Function;
-};
-
 interface WoolballOptions {
-    environment?: 'extension' | 'web' | 'node';
+    environment?: Environment;
 }
 
-const TASK_CONFIGS: Record<string, TaskConfig> = {
-    'automatic-speech-recognition': { type: 'worker', handler: workerCode },
-    'text-to-speech': { type: 'worker', handler: workerCode },
-    'translation': { type: 'worker', handler: workerCode },
-    'text-generation': { type: 'worker', handler: workerCode },
-    'image-text-to-text': { type: 'worker', handler: workerCode },
-    'char-to-image': { type: 'browser', handler: taskProcessors['char-to-image'] },
-    'html-to-image': { type: 'browser', handler: taskProcessors['html-to-image'] },
-};
+
+
+
 
 class Woolball {
     private wsConnection: WebSocket | null = null;
@@ -65,8 +53,12 @@ class Woolball {
         this.workerTypes = new Map();
         this.activeWorkers = new Set();
         
-        Object.entries(TASK_CONFIGS).forEach(([taskType, config]) => {
-            this.workerTypes.set(taskType, config.handler);
+        // Initialize worker types based on task configurations
+        Object.keys(TASK_CONFIGS).forEach((taskType) => {
+            const handler = getTaskHandler(taskType as TaskType, this.getCurrentEnvironment());
+            if (handler) {
+                this.workerTypes.set(taskType, handler);
+            }
         });
     }
 
@@ -233,7 +225,7 @@ class Woolball {
             const blob = new Blob([workerSource as string], { type: 'application/javascript' });
             const workerUrl = URL.createObjectURL(blob);
             
-            const worker = new (WebWorker as any)(workerUrl);
+            const worker = new Worker(workerUrl);
             URL.revokeObjectURL(workerUrl);
             
             this.activeWorkers.add(worker);
@@ -242,6 +234,18 @@ class Woolball {
             console.error('Error creating worker:', error);
             throw new Error(`Failed to create worker: ${error.message || 'Unknown error'}`);
         }
+    }
+    
+    /**
+     * Gets the current environment based on options or detection
+     */
+    private getCurrentEnvironment(): Environment {
+        if (this.options.environment) {
+            return this.options.environment;
+        }
+        
+        // Default to web environment if not specified
+        return 'web';
     }
 
     private terminateWorker(worker: Worker & { _blobUrl?: string }): void {
@@ -254,12 +258,7 @@ class Woolball {
     }
 
     public async processEvent(type : string, value: any): Promise<any> {
-        const taskConfig = TASK_CONFIGS[type];
-        if (!taskConfig) {
-            throw new Error(`Task type not found: ${type}`);
-        }
-        const isWorkerTask = !taskConfig.type || taskConfig.type === 'worker';
-
+        // Convert string boolean values to actual booleans
         for (const key in value) {
             if (value[key] === 'true') {
                 value[key] = true;
@@ -268,70 +267,79 @@ class Woolball {
                 value[key] = false;
             }
         }
-
-        if (taskConfig.type === 'browser' && typeof window === 'undefined') {
-            return { error: `Task type '${type}' is not supported in this environment` };
+        
+        const currentEnvironment = this.getCurrentEnvironment();
+        const executionType = getTaskExecutionType(type as TaskType, currentEnvironment);
+        
+        if (!executionType) {
+            return { error: `Task type '${type}' is not supported in ${currentEnvironment} environment` };
         }
-
-        if (taskConfig.type === 'browser') {
-            try {
-                const result = await (taskConfig.handler as Function)(value);
-                return result;
-            } catch (processorError) {
-                console.error(`[Browser] Error in ${type} processor:`, processorError);
-                const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
-                return { error: errorMessage };
-            }
-        }
-
-        if (!isWorkerTask) {
-            return { error: `Task type '${type}' is not supported` };
-        }
-
-        if (this.options.environment === 'extension') {
-            try {
-                const processor = taskProcessors[type as keyof typeof taskProcessors];
-                if (!processor) {
-                    throw new Error(`Processor not found for task: ${type}`);
+        
+        // Handle tasks based on their execution type
+        switch (executionType) {
+            case 'browser':
+                if (typeof window === 'undefined') {
+                    return { error: `Task type '${type}' requires a browser environment` };
                 }
                 
-                const taskData = { task: type, ...value };
-                const result = await processor(taskData);
-                return result;
-            } catch (processorError) {
-                const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
-                return { error: errorMessage };
-            }
-        }
-
-        const worker = this.createWorker(type);
-
-        return new Promise((resolve, reject) => {
-            const messageHandler = (e: MessageEvent) => {
-                worker.removeEventListener('message', messageHandler);
-                worker.removeEventListener('error', errorHandler);
-                this.terminateWorker(worker);
-                
-                if (e.data.error) {
-                    resolve({ error: e.data.error });
-                } else {
-                    resolve(e.data);
+                try {
+                    const handler = getTaskHandler(type as TaskType, currentEnvironment) as Function;
+                    const result = await handler(value);
+                    return result;
+                } catch (processorError) {
+                    console.error(`[Browser] Error in ${type} processor:`, processorError);
+                    const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
+                    return { error: errorMessage };
                 }
-            };
-
-            const errorHandler = (e: ErrorEvent) => {
-                worker.removeEventListener('message', messageHandler);
-                worker.removeEventListener('error', errorHandler);
-                this.terminateWorker(worker);
                 
-                const errorMessage = e.message || 'Unknown worker error';
-                resolve({ error: errorMessage });
-            };
+            case 'direct':
+                try {
+                    const processor = taskProcessors[type as TaskType];
+                    if (!processor) {
+                        throw new Error(`Processor not found for task: ${type}`);
+                    }
+                    
+                    const taskData = { task: type, ...value };
+                    const result = await processor(taskData);
+                    return result;
+                } catch (processorError) {
+                    const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
+                    return { error: errorMessage };
+                }
+                
+            case 'worker':
+                const worker = this.createWorker(type);
 
-            worker.addEventListener('message', messageHandler);
-            worker.addEventListener('error', errorHandler);
-            worker.postMessage(value);
-        });
+                return new Promise((resolve, reject) => {
+                    const messageHandler = (e: MessageEvent) => {
+                        worker.removeEventListener('message', messageHandler);
+                        worker.removeEventListener('error', errorHandler);
+                        this.terminateWorker(worker);
+                        
+                        if (e.data.error) {
+                            resolve({ error: e.data.error });
+                        } else {
+                            resolve(e.data);
+                        }
+                    };
+
+                    const errorHandler = (e: ErrorEvent) => {
+                        worker.removeEventListener('message', messageHandler);
+                        worker.removeEventListener('error', errorHandler);
+                        this.terminateWorker(worker);
+                        
+                        const errorMessage = e.message || 'Unknown worker error';
+                        resolve({ error: errorMessage });
+                    };
+
+                    worker.addEventListener('message', messageHandler);
+                    worker.addEventListener('error', errorHandler);
+                    worker.postMessage(value);
+                });
+                
+            default:
+                return { error: `Unknown execution type: ${executionType}` };
+        }
     }
 
     public on(status: TaskStatus, listener: EventListener): void {
