@@ -2,6 +2,10 @@ import { processAudio } from '../../media';
 import { TaskData, TaskResult } from '../types';
 
 export async function asr(data: TaskData): Promise<TaskResult> {
+  return handle(data);
+}
+
+async function handle(data : TaskResult){
   const { input, model, dtype, ...options } = data;
   
   const audioData = processAudio(input);
