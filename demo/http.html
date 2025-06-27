@@ -323,7 +323,7 @@
       <p class="status" id="textGenStatus">Enter a prompt to generate text.</p>
     </div>
   </div>
-  
+
   <div class="tab-content" id="webllm-text-generation-content">
     <div class="card">
       <h2>WebLLM Text Generation</h2>
@@ -504,14 +504,15 @@
         document.getElementById('result').textContent = 'Processing...';
         ttsAudio.style.display = 'none';
 
-        // Only include voice parameter if Kokoro is selected
-        const isKokoro = ttsModelInput.value === 'onnx-community/Kokoro-82M-ONNX';
+        
+        const isKokoro = ttsModelInput.value.includes('Kokoro');
         
         const response = await httpClient.processTextToSpeech(ttsInput.value, {
           model: ttsModelInput.value,
           dtype: ttsDtypeInput.value,
           voice: isKokoro ? ttsVoiceInput.value : undefined,
-          stream: ttsStreamCheckbox.checked
+          stream: ttsStreamCheckbox.checked,
+          provider: isKokoro ? 'kokoro' : 'transformers'
         });
 
         if (ttsStreamCheckbox.checked) {
