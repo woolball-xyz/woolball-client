@@ -2,8 +2,7 @@ import { verifyBrowserCompatibility } from "../utils";
 import { WebSocketMessage, WorkerEvent } from "../utils/websocket";
 import Worker from 'web-worker';
 import { TaskType, taskProcessors } from '../utils/tasks';
-import { Environment, ExecutionType, TASK_CONFIGS, getTaskExecutionType, getTaskHandler } from './TaskAvailability';
-
+import { Environment, TASK_CONFIGS, getTaskExecutionType, getTaskHandler } from './TaskAvailability';
 
 type TaskStatus = 'started' | 'success' | 'error' | 'node_count';
 
@@ -36,14 +35,14 @@ class Woolball {
     constructor(id : string, url = 'ws://localhost:9003/ws', options: WoolballOptions = {}) {
         this.options = options;
         
-        if (this.options.environment === 'extension') {
-            console.log('Initializing Woolball in Chrome extension environment');
-        } else if (this.options.environment === 'node') {
-            console.log('Initializing Woolball in Node.js environment');
-        } else {
-            verifyBrowserCompatibility();
+        // Definir ambiente padrão como 'browser' se não for especificado
+        if (!this.options.environment) {
+            this.options.environment = 'browser' as Environment;
         }
         
+        if (['browser', 'extension'].includes(this.options.environment)) {
+            verifyBrowserCompatibility();
+        }
         this.clientId = id;
         this.wsUrl = url;
         this.eventListeners.set('started', new Set());
@@ -238,14 +237,20 @@ class Woolball {
     
     /**
      * Gets the current environment based on options or detection
+     * @returns The current environment
      */
     private getCurrentEnvironment(): Environment {
         if (this.options.environment) {
             return this.options.environment;
+        } else if (typeof window !== 'undefined') {
+            return 'browser';
+        } else if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+            return 'node';
+        } else {
+            // Fallback, though this should not happen in normal circumstances
+            console.warn('Could not determine environment, defaulting to node');
+            return 'node';
         }
-        
-        // Default to web environment if not specified
-        return 'web';
     }
 
     private terminateWorker(worker: Worker & { _blobUrl?: string }): void {
@@ -278,10 +283,6 @@ class Woolball {
         // Handle tasks based on their execution type
         switch (executionType) {
             case 'browser':
-                if (typeof window === 'undefined') {
-                    return { error: `Task type '${type}' requires a browser environment` };
-                }
-                
                 try {
                     const handler = getTaskHandler(type as TaskType, currentEnvironment) as Function;
                     const result = await handler(value);
@@ -292,20 +293,15 @@ class Woolball {
                     return { error: errorMessage };
                 }
                 
-            case 'direct':
-                try {
-                    const processor = taskProcessors[type as TaskType];
-                    if (!processor) {
-                        throw new Error(`Processor not found for task: ${type}`);
-                    }
-                    
-                    const taskData = { task: type, ...value };
-                    const result = await processor(taskData);
-                    return result;
-                } catch (processorError) {
-                    const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
-                    return { error: errorMessage };
+            case 'node_worker': {
+                // Validate provider type for Node.js (keep existing validation)
+                if (value.provider && value.provider !== 'transformers') {
+                    throw new Error(`Unsupported provider for Node.js: ${value.provider}. Only 'transformers' is supported.`);
                 }
+                
+                const { processWithoutNodeWorker } = await import('./node-worker.js');
+                return processWithoutNodeWorker(type as TaskType, value);
+            }
                 
             case 'worker':
                 const worker = this.createWorker(type);

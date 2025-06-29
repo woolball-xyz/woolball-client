@@ -42,11 +42,13 @@ async function processTransformersTTS(
   options: Record<string, any> = {}
 ): Promise<TaskResult> {
   try {
-    const { pipeline } = await import('@huggingface/transformers');
+    const { pipeline, env } = await import('@huggingface/transformers');
+    env.allowLocalModels = false;
     
+    const { getTransformersDevice } = await import('../../../utils/environment.js');
     const pipe = await pipeline('text-to-speech', model, {
       dtype: dtype as any,
-      device: 'wasm',
+      device: getTransformersDevice('wasm')as any,
     });
     
     const result = await pipe(text, options);

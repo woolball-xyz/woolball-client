@@ -33,10 +33,13 @@ export async function translation(data: TaskData): Promise<TaskResult> {
     }
   }
   
-  const { pipeline } = await import('@huggingface/transformers');
+  const { pipeline, env } = await import('@huggingface/transformers');
+  env.allowLocalModels = false;
+  
+  const { getTransformersDevice } = await import('../../../utils/environment.js');
   const pipe = await pipeline('translation', model, {
     dtype: data.dtype as any,
-    device: 'wasm',
+    device: getTransformersDevice('wasm') as any,
   });
   
   const translationOptions = {

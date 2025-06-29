@@ -1,110 +1,100 @@
 import { TaskType, TaskProcessor, taskProcessors } from '../utils/tasks';
 import workerCode from './worker-string';
 
-export type Environment = 'web' | 'extension' | 'node';
+export type Environment = 'browser' | 'extension' | 'node';
 
-export type ExecutionType = 'worker' | 'browser' | 'direct';
+export type ExecutionType = 'browser' | 'worker' | 'node_worker';
 
 export interface TaskConfig {
-  type: ExecutionType;
-  handler: string | Function;
-  availableIn: Environment[];
+  browser?: {
+    type: ExecutionType;
+    handler: string | Function;
+  };
+  extension?: {
+    type: ExecutionType;
+    handler: string | Function;
+  };
+  node?: {
+    type: ExecutionType;
+    handler: string | Function;
+  };
 }
 
+// AI tasks: automatic-speech-recognition, text-to-speech, translation, text-generation, image-text-to-text
+// Canvas tasks: char-to-image, html-to-image
+
 /**
- * This configuration defines how each task type should be executed in different environments.
- * - type: How the task should be executed (worker, browser, or direct)
- * - handler: The function or code to handle the task
- * - availableIn: List of environments where this task is available
+ * Centralized task configuration following the rules:
+ * - Browser: AI tasks via worker, canvas tasks direct
+ * - Extension: AI tasks direct, canvas tasks unavailable
+ * - Node: AI tasks via node_worker, canvas tasks unavailable
  */
 export const TASK_CONFIGS: Record<TaskType, TaskConfig> = {
-  'automatic-speech-recognition': { 
-    type: 'worker', 
-    handler: workerCode, 
-    availableIn: ['web', 'extension']
+  // AI Tasks
+  'automatic-speech-recognition': {
+    browser: { type: 'worker', handler: workerCode },
+    extension: { type: 'browser', handler: taskProcessors['automatic-speech-recognition'] },
+    node: { type: 'node_worker', handler: taskProcessors['automatic-speech-recognition'] }
   },
-  'text-to-speech': { 
-    type: 'worker', 
-    handler: workerCode, 
-    availableIn: ['web', 'extension']
+  'text-to-speech': {
+    browser: { type: 'worker', handler: workerCode },
+    extension: { type: 'browser', handler: taskProcessors['text-to-speech'] },
+    node: { type: 'node_worker', handler: taskProcessors['text-to-speech'] }
   },
-  'translation': { 
-    type: 'worker', 
-    handler: workerCode, 
-    availableIn: ['web', 'extension']
+  'translation': {
+    browser: { type: 'worker', handler: workerCode },
+    extension: { type: 'browser', handler: taskProcessors['translation'] },
+    node: { type: 'node_worker', handler: taskProcessors['translation'] }
   },
-  'text-generation': { 
-    type: 'worker', 
-    handler: workerCode, 
-    availableIn: ['web', 'extension']
+  'text-generation': {
+    browser: { type: 'worker', handler: workerCode },
+    extension: { type: 'browser', handler: taskProcessors['text-generation'] },
+    node: { type: 'node_worker', handler: taskProcessors['text-generation'] }
   },
-  'image-text-to-text': { 
-    type: 'worker', 
-    handler: workerCode, 
-    availableIn: ['web', 'extension']
+  'image-text-to-text': {
+    browser: { type: 'worker', handler: workerCode },
+    extension: { type: 'browser', handler: taskProcessors['image-text-to-text'] },
+    node: { type: 'node_worker', handler: taskProcessors['image-text-to-text'] }
   },
-  'char-to-image': { 
-    type: 'browser', 
-    handler: taskProcessors['char-to-image'], 
-    availableIn: ['web']
+  // Canvas Tasks
+  'char-to-image': {
+    browser: { type: 'browser', handler: taskProcessors['char-to-image'] }
+    // Not available in extension and node
   },
-  'html-to-image': { 
-    type: 'browser', 
-    handler: taskProcessors['html-to-image'], 
-    availableIn: ['web']
+  'html-to-image': {
+    browser: { type: 'browser', handler: taskProcessors['html-to-image'] }
+    // Not available in extension and node
   },
 };
 
 /**
- * Checks if a task is available in the specified environment
- * @param taskType The type of task to check
- * @param environment The current environment
- * @returns True if the task is available in the environment
+ * Check if a task is available in the given environment
  */
 export function isTaskAvailableInEnvironment(taskType: TaskType, environment: Environment): boolean {
   const config = TASK_CONFIGS[taskType];
-  if (!config) return false;
-  return config.availableIn.includes(environment);
+  return config ? config[environment] !== undefined : false;
 }
 
 /**
- * Gets the appropriate handler for a task in the current environment
- * @param taskType The type of task
- * @param environment The current environment
- * @returns The handler function or code, or null if not available
+ * Get the task handler for a specific task type and environment
  */
 export function getTaskHandler(taskType: TaskType, environment: Environment): string | Function | null {
-  if (!isTaskAvailableInEnvironment(taskType, environment)) {
+  const config = TASK_CONFIGS[taskType];
+  if (!config || !config[environment]) {
     return null;
   }
   
-  const config = TASK_CONFIGS[taskType];
-  
-  // For extension environment, we always use the direct processor
-  if (environment === 'extension') {
-    return taskProcessors[taskType];
-  }
-  
-  return config.handler;
+  return config[environment]!.handler;
 }
 
 /**
- * Gets the execution type for a task in the current environment
- * @param taskType The type of task
- * @param environment The current environment
- * @returns The execution type, or null if not available
+ * Get the execution type for a task in a specific environment
  */
 export function getTaskExecutionType(taskType: TaskType, environment: Environment): ExecutionType | null {
-  if (!isTaskAvailableInEnvironment(taskType, environment)) {
+  const config = TASK_CONFIGS[taskType];
+  if (!config || !config[environment]) {
     return null;
   }
   
-  const config = TASK_CONFIGS[taskType];
-  
-  // For extension environment, we always use direct execution
-  if (environment === 'extension') {
-    return 'direct';
-  }
-  
-  return config.type;
+  return config[environment]!.type;
 }

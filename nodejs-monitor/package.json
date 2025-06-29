@@ -1,0 +1,39 @@
+{
+  "name": "woolball-cli",
+  "version": "1.0.2",
+  "description": "Monitor CLI para o servidor Woolball",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "woolball": "./bin/woolball.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "prepublishOnly": "npm run build",
+    "build": "echo 'Build completed'"
+  },
+  "keywords": [
+    "woolball",
+    "monitor",
+    "cli",
+    "websocket",
+    "real-time"
+  ],
+  "author": "Eduardo Worrel",
+  "license": "MIT",
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "chalk": "^5.3.0",
+    "nanospinner": "^1.1.0",
+    "woolball-client": "^0.1.43"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "bin/",
+    "index.js",
+    "README.md"
+  ]
+}

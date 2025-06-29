@@ -1,0 +1,42 @@
+# Arquivos de desenvolvimento
+.git/
+.gitignore
+.DS_Store
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Arquivos de teste
+*.test.js
+*.spec.js
+test/
+tests/
+__tests__/
+
+# Arquivos de configuração de desenvolvimento
+.eslintrc*
+.prettierrc*
+.editorconfig
+.vscode/
+.idea/
+
+# Arquivos temporários
+*.tmp
+*.temp
+.cache/
+
+# Logs
+logs/
+*.log
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Outros
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
