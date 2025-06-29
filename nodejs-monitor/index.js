@@ -5,7 +5,7 @@ import blessed from 'blessed';
 import contrib from 'blessed-contrib';
 
 // Woolball server configuration
-const WEBSOCKET_URL = 'ws://localhost:9003/ws';
+const WEBSOCKET_URL = process.env.WOOLBALL_WS_URL || 'ws://localhost:9003/ws';
 
 // Terminal interface configuration
 const screen = blessed.screen({
