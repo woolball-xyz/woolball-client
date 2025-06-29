@@ -14,8 +14,8 @@ let webLLMEngine: any = null;
 let mediaPipeLLM: any = null;
 
 async function handlePromptAPI(messages: any[]): Promise<TaskResult> {
-  if (typeof window.LanguageModel === 'undefined') {
-    throw new Error('Prompt API is not supported in this browser. Please use Google Chrome Canary with the Prompt API flag enabled.');
+  if (typeof window === 'undefined' || typeof window.LanguageModel === 'undefined') {
+    return { generatedText: 'Prompt API is not supported in this environment. Please use Google Chrome Canary with the Prompt API flag enabled.' };
   }
   
   const session = await (window.LanguageModel as any).create({ 
@@ -113,9 +113,15 @@ async function handleMediaPipe(messages: any[], model: string, stream: boolean, 
 }
 
 async function handleTransformers(messages: any[], model: string, dtype: any, options: any): Promise<TaskResult> {
-  const { pipeline } = await import('@huggingface/transformers');
-  const pipe = await pipeline('text-generation', model, { dtype, device: 'wasm' });
+
+  const { pipeline, env } = await import('@huggingface/transformers');
+  env.allowLocalModels = false;
+
+  const { getTransformersDevice } = await import('../../../utils/environment.js');
+  const device = getTransformersDevice('wasm');
   
+  const pipe = await pipeline('text-generation', model, { dtype, device: device  as any});
+
   const result = await pipe(messages, options);
   const generated = (result[0] as any)?.generated_text;
   

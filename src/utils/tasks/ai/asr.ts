@@ -10,10 +10,12 @@ async function handle(data : TaskResult){
   
   const audioData = processAudio(input);
   
-  const { pipeline } = await import('@huggingface/transformers');
+  const { pipeline, env } = await import('@huggingface/transformers');
+  env.allowLocalModels = false;
+  const { getTransformersDevice } = await import('../../../utils/environment.js');
   const pipe = await pipeline('automatic-speech-recognition', model, {
     dtype: dtype as any,
-    device: 'webgpu',
+    device: getTransformersDevice('webgpu') as any,
   });
   
   const result = await pipe(audioData, options as any);

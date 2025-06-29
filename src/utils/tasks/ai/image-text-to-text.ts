@@ -79,8 +79,9 @@ async function processLlavaOnevision(
   options: Record<string, any> = {}
 ): Promise<TaskResult> {
   try {
-    const { AutoProcessor, AutoTokenizer, LlavaOnevisionForConditionalGeneration, RawImage } = await import('@huggingface/transformers');
-    
+    const { AutoProcessor, AutoTokenizer, LlavaOnevisionForConditionalGeneration, RawImage, env } = await import('@huggingface/transformers');
+
+    env.allowLocalModels = false;
     const tokenizer = await AutoTokenizer.from_pretrained(model);
     const processor = await AutoProcessor.from_pretrained(model, {});
     const modelPipe = await LlavaOnevisionForConditionalGeneration.from_pretrained(model, {

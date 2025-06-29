@@ -23,23 +23,38 @@ export function processAudio(data: string): Float64Array {
 }
 
 /**
- * Converte um Blob para ArrayBuffer
- * @param blob Blob para converter
- * @returns Promise<ArrayBuffer> ArrayBuffer resultante
+ * Converts a Blob to ArrayBuffer
+ * Compatible with browser and Node.js environments
+ * @param blob Blob to convert
+ * @returns Promise<ArrayBuffer> Resulting ArrayBuffer
  */
 export async function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (reader.result instanceof ArrayBuffer) {
-        resolve(reader.result);
+  const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+  
+  if (isBrowser) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (reader.result instanceof ArrayBuffer) {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Failed to convert blob to ArrayBuffer'));
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(blob);
+    });
+  } else {
+    if (typeof blob.arrayBuffer === 'function') {
+      return blob.arrayBuffer();
+    } else {
+      if (blob instanceof Buffer) {
+        return Promise.resolve(blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength));
       } else {
-        reject(new Error('Failed to convert blob to ArrayBuffer'));
+        return Promise.resolve(Buffer.from(blob as any).buffer);
       }
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(blob);
-  });
+    }
+  }
 }
 
 /**
