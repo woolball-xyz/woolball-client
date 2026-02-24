@@ -1,4 +1,4 @@
-import Woolball from 'woolball-client';
+import Woolball, { isSupportedBrowser } from 'woolball-client';
 import { WEBSOCKET_URL } from './utils/env';
 
 export class WebSocketManager {
@@ -9,13 +9,6 @@ export class WebSocketManager {
   private onNodeCountChange?: (nodeCount: number) => void;
   private nodeCount: number;
   private wsUrl: string;
-
-  private isChromeBased(): boolean {
-    const userAgent = navigator.userAgent.toLowerCase();
-    return userAgent.includes('chrome') || 
-           userAgent.includes('chromium') || 
-           userAgent.includes('edg');
-  }
 
   private showBrowserCompatibilityError(): void {
     this.container.innerHTML = `
@@ -240,7 +233,7 @@ export class WebSocketManager {
     this.onNodeCountChange = onNodeCountChange;
     this.wsUrl = wsUrl || WEBSOCKET_URL;
 
-    if (!this.isChromeBased()) {
+    if (!isSupportedBrowser()) {
       this.showBrowserCompatibilityError();
       this.updateConnectionStatus('error');
       return;
@@ -325,17 +318,14 @@ export class WebSocketManager {
       const instanceId = `node-${index+1}`;
       
       instance.on('started', (evt: any) => {
-        console.log(`Task started on instance #${index+1}:`, evt);
         this.renderEvent({ ...evt, status: 'started', instance: instanceId });
       });
-      
+
       instance.on('success', (evt: any) => {
-        console.log(`Task success on instance #${index+1}:`, evt);
         this.renderEvent({ ...evt, status: 'success', instance: instanceId });
       });
-      
+
       instance.on('error', (evt: any) => {
-        console.error(`Task error on instance #${index+1}:`, evt);
         this.renderEvent({ ...evt, status: 'error', instance: instanceId });
       });
 
@@ -371,16 +361,34 @@ export class WebSocketManager {
       card.classList.add('event-card');
       card.setAttribute('data-id', cardId);
 
-      card.innerHTML = `
-        <div class="event-emoji">${this.getEmoji(type)}</div>
-        <div class="event-info">
-          <div class="event-type">
-            <span>${type}</span>
-            ${instance ? `<span class="event-instance">${instance}</span>` : ''}
-          </div>
-          <div class="event-status"></div>
-        </div>
-      `;
+      const emojiDiv = document.createElement('div');
+      emojiDiv.classList.add('event-emoji');
+      emojiDiv.textContent = this.getEmoji(type);
+
+      const typeSpan = document.createElement('span');
+      typeSpan.textContent = type;
+
+      const typeDiv = document.createElement('div');
+      typeDiv.classList.add('event-type');
+      typeDiv.appendChild(typeSpan);
+
+      if (instance) {
+        const instanceSpan = document.createElement('span');
+        instanceSpan.classList.add('event-instance');
+        instanceSpan.textContent = instance;
+        typeDiv.appendChild(instanceSpan);
+      }
+
+      const statusDiv = document.createElement('div');
+      statusDiv.classList.add('event-status');
+
+      const infoDiv = document.createElement('div');
+      infoDiv.classList.add('event-info');
+      infoDiv.appendChild(typeDiv);
+      infoDiv.appendChild(statusDiv);
+
+      card.appendChild(emojiDiv);
+      card.appendChild(infoDiv);
       this.container.prepend(card);
       this.eventsMap.set(cardId, card);
     }

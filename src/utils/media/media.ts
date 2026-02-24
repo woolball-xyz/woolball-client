@@ -7,8 +7,8 @@ import {WaveFile} from 'wavefile';
  */
 export function processAudio(data: string): Float64Array {
   let wav = new WaveFile();
-  wav.fromBase64(data);  
-  wav.toBitDepth('32f'); 
+  wav.fromBase64(data);
+  wav.toBitDepth('32f');
   wav.toSampleRate(16000); 
   
   let samples = wav.getSamples();

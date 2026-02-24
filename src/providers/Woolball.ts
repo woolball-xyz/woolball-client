@@ -31,11 +31,16 @@ class Woolball {
     private wsUrl: string;
     private activeWorkers: Set<Worker>;
     private options: WoolballOptions;
+    private reconnectAttempts = 0;
+    private maxReconnectAttempts = 5;
+    private reconnectTimeout = 1000;
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    private destroyed = false;
 
     constructor(id : string, url = 'ws://localhost:9003/ws', options: WoolballOptions = {}) {
         this.options = options;
         
-        // Definir ambiente padrão como 'browser' se não for especificado
+        // Default to 'browser' environment if not specified
         if (!this.options.environment) {
             this.options.environment = 'browser' as Environment;
         }
@@ -66,26 +71,35 @@ class Woolball {
             console.warn('WebSocket connection already exists');
             return;
         }
+        this.destroyed = false;
+        this.reconnectAttempts = 0;
         this.connectWebSocket(this.wsUrl);
     }
 
     public destroy(): void {
+        this.destroyed = true;
+
+        if (this.reconnectTimer !== null) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+
         if (this.wsConnection) {
             this.wsConnection.close();
             this.wsConnection = null;
         }
-        
+
         this.activeWorkers.forEach(worker => {
             worker.terminate();
         });
         this.activeWorkers.clear();
-        
+
         this.eventListeners.clear();
         this.eventListeners.set('started', new Set());
         this.eventListeners.set('success', new Set());
         this.eventListeners.set('error', new Set());
         this.eventListeners.set('node_count', new Set());
-        
+
         this.workerTypes.clear();
     }
     
@@ -96,6 +110,7 @@ class Woolball {
         this.wsConnection = new WebSocket(`${url}/${this.clientId}`);
         this.wsConnection.onopen = () => {
             console.log('WebSocket connection established');
+            this.reconnectAttempts = 0;
         };
         this.wsConnection.onmessage = (event) => {
             if (event.data === 'ping') {
@@ -105,7 +120,7 @@ class Woolball {
             if (event.data.startsWith('node_count:')) {
                 const nodeCountStr = event.data.split(':')[1];
                 const nodeCount = parseInt(nodeCountStr, 10);
-                
+
                 if (!isNaN(nodeCount)) {
                     this.emitEvent('node_count', {
                         id: '',
@@ -119,8 +134,7 @@ class Woolball {
             try {
                 this.handleWebSocketMessage(JSON.parse(event.data));
             } catch (parseError) {
-                console.error('Failed to parse WebSocket message:', parseError);
-                console.error('Raw message:', event.data);
+                console.error('Failed to parse WebSocket message');
             }
         };
         this.wsConnection.onerror = (error) => {
@@ -128,6 +142,17 @@ class Woolball {
         };
         this.wsConnection.onclose = (event) => {
             console.log(`WebSocket connection closed: ${event.code} ${event.reason}`);
+            this.wsConnection = null;
+
+            if (!this.destroyed && event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                const delay = this.reconnectTimeout * Math.pow(2, this.reconnectAttempts - 1);
+                console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+                this.reconnectTimer = setTimeout(() => {
+                    this.reconnectTimer = null;
+                    this.connectWebSocket(url);
+                }, delay);
+            }
         };
     }
     
@@ -137,7 +162,7 @@ class Woolball {
     private async handleWebSocketMessage(message: WorkerEvent): Promise<void> {
         const { Id, Key, Value } = message;
         if (!Id || !Key || !Value) {
-            console.error('Invalid message format:', message);
+            console.error('Invalid message format: missing Id, Key, or Value');
             return;
         }
         
@@ -159,7 +184,7 @@ class Woolball {
                     status: 'error' as TaskStatus,
                 };
 
-                console.error(`Error processing ${Key}:`, response.error);
+                console.error(`Error processing ${Key}`);
                 
                 this.emitEvent('error', errorData);
                 
@@ -263,16 +288,17 @@ class Woolball {
     }
 
     public async processEvent(type : string, value: any): Promise<any> {
-        // Convert string boolean values to actual booleans
-        for (const key in value) {
-            if (value[key] === 'true') {
-                value[key] = true;
+        // Convert string boolean values to actual booleans (shallow copy to avoid mutating caller's object)
+        const normalizedValue: Record<string, any> = { ...value };
+        for (const key in normalizedValue) {
+            if (normalizedValue[key] === 'true') {
+                normalizedValue[key] = true;
             }
-            if (value[key] === 'false') {
-                value[key] = false;
+            if (normalizedValue[key] === 'false') {
+                normalizedValue[key] = false;
             }
         }
-        
+
         const currentEnvironment = this.getCurrentEnvironment();
         const executionType = getTaskExecutionType(type as TaskType, currentEnvironment);
         
@@ -285,22 +311,22 @@ class Woolball {
             case 'browser':
                 try {
                     const handler = getTaskHandler(type as TaskType, currentEnvironment) as Function;
-                    const result = await handler(value);
+                    const result = await handler(normalizedValue);
                     return result;
                 } catch (processorError) {
                     console.error(`[Browser] Error in ${type} processor:`, processorError);
                     const errorMessage = processorError instanceof Error ? processorError.message : String(processorError);
                     return { error: errorMessage };
                 }
-                
+
             case 'node_worker': {
                 // Validate provider type for Node.js (keep existing validation)
-                if (value.provider && value.provider !== 'transformers') {
-                    throw new Error(`Unsupported provider for Node.js: ${value.provider}. Only 'transformers' is supported.`);
+                if (normalizedValue.provider && normalizedValue.provider !== 'transformers') {
+                    throw new Error(`Unsupported provider for Node.js: ${normalizedValue.provider}. Only 'transformers' is supported.`);
                 }
-                
+
                 const { processWithoutNodeWorker } = await import('./node-worker.js');
-                return processWithoutNodeWorker(type as TaskType, value);
+                return processWithoutNodeWorker(type as TaskType, normalizedValue);
             }
                 
             case 'worker':
@@ -330,7 +356,7 @@ class Woolball {
 
                     worker.addEventListener('message', messageHandler);
                     worker.addEventListener('error', errorHandler);
-                    worker.postMessage(value);
+                    worker.postMessage(normalizedValue);
                 });
                 
             default:

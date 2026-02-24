@@ -7,7 +7,6 @@ window.ENV_CONFIG = {
   VITE_WEBSOCKET_URL: "${VITE_WEBSOCKET_URL}",
   VITE_API_URL: "${VITE_API_URL}"
 };
-console.log("Runtime environment loaded:", window.ENV_CONFIG);
 EOF
 
 echo "Ambiente de execução configurado com:"

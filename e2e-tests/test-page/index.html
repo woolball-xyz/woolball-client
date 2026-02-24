@@ -8,22 +8,22 @@
 <body>
   <h1>Woolball Test Page</h1>
   <p>This page is used for Playwright e2e testing of the Woolball library.</p>
-  
+
   <!-- Load the Woolball library -->
   <script src="/dist/Woolball.js"></script>
-  
+
   <!-- Expose the library to the window object for testing -->
   <script>
     try {
       // Wait for the module to be loaded
-      const { isChromeBased, verifyBrowserCompatibility } = require_browser().exports;
-      
+      const { isSupportedBrowser, verifyBrowserCompatibility } = require_browser().exports;
+
       // Expose the utility functions for testing
       window.Woolball = {
-        isChromeBased,
+        isSupportedBrowser,
         verifyBrowserCompatibility
       };
-      
+
       console.log('Woolball loaded successfully:', window.Woolball);
     } catch (error) {
       console.error('Error initializing Woolball:', error);

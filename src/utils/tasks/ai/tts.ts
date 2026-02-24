@@ -56,7 +56,7 @@ async function processTransformersTTS(
     const wavEncoder = await import('wav-encoder');
     const wavBuffer = await wavEncoder.encode({
       sampleRate: 16000,
-      channelData: [result.audio]
+      channelData: [Array.isArray(result.audio) ? result.audio[0] : result.audio]
     });
     
     await pipe.dispose();
@@ -86,7 +86,6 @@ async function processKokoroTTS(
   dtype?: string,
   options: Record<string, any> = {}
 ): Promise<TaskResult> {
-  console.log('processKokoroTTS started with:', { text, model, dtype, options });
   
   try {
     const { KokoroTTS } = await import('kokoro-js');

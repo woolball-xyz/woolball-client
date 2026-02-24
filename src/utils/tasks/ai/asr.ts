@@ -7,7 +7,6 @@ export async function asr(data: TaskData): Promise<TaskResult> {
 
 async function handle(data : TaskResult){
   const { input, model, dtype, ...options } = data;
-  
   const audioData = processAudio(input);
   
   const { pipeline, env } = await import('@huggingface/transformers');
