@@ -1,8 +1,9 @@
 services:
   headless-node:
     build:
-      context: ..
-      dockerfile: headless-node/Dockerfile
+      context: .
+      dockerfile: Dockerfile
+    shm_size: '2gb'
     environment:
       - VITE_WEBSOCKET_URL=ws://host.docker.internal:9003/ws
       - NODE_COUNT=1

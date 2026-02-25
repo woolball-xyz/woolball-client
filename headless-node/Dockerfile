@@ -1,15 +1,3 @@
-# Stage 1: Build browser-ui
-FROM node:22-slim AS ui-builder
-
-WORKDIR /app
-COPY browser-ui/package*.json ./browser-ui/
-# Replace local file: dependency with npm registry version
-RUN sed -i 's|"woolball-client": "file:.."|"woolball-client": "^0.1.50"|' browser-ui/package.json
-RUN cd browser-ui && npm install
-COPY browser-ui/ ./browser-ui/
-RUN cd browser-ui && npm run build
-
-# Stage 2: Headless node
 FROM node:22-slim
 
 # Install Chromium dependencies
@@ -41,14 +29,14 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 
 # Install Node dependencies
-COPY headless-node/package*.json ./
+COPY package*.json ./
 RUN npm install
 
 # Copy the start script
-COPY headless-node/start.mjs ./
+COPY start.mjs ./
 
-# Copy built browser-ui
-COPY --from=ui-builder /app/browser-ui/dist /app/browser-ui
+# Copy pre-built browser-ui (build it locally first with: cd browser-ui && npm run build)
+COPY browser-ui-dist /app/browser-ui
 
 ENV STATIC_DIR=/app/browser-ui
 ENV NODE_COUNT=1

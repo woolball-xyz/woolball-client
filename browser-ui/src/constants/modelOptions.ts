@@ -45,7 +45,7 @@ export const modelOptions = {
     // MediaPipe Models
     { value: 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma2-2b-it-cpu-int8.task', label: 'Gemma2 2B CPU (MediaPipe)', provider: 'mediapipe' },
     { value: 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma2-2b-it-gpu-int8.bin', label: 'Gemma2 2B GPU (MediaPipe)', provider: 'mediapipe' },
-    { value: 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma3-1b-it-int4.task', label: 'Gemma3 1B (MediaPipe)', provider: 'mediapipe' },
+    { value: 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma3-1b-it-int4-web.task', label: 'Gemma3 1B (MediaPipe)', provider: 'mediapipe' },
     { value: 'https://woolball.sfo3.cdn.digitaloceanspaces.com/gemma3-4b-it-int4-web.task', label: 'Gemma3 4B Web (MediaPipe)', provider: 'mediapipe' }
   ]
 };
