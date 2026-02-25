@@ -65,7 +65,7 @@ async function handleMediaPipe(messages: any[], model: string, stream: boolean, 
     
     if (!mediaPipeLLM) {
       
-      const wasmPath = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai/wasm';
+      const wasmPath = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@0.10.26/wasm';
       
       const genaiFileset = await FilesetResolver.forGenAiTasks(wasmPath);
       const mediaPipeOptions: any = {
@@ -152,23 +152,19 @@ export async function textGeneration(data: TaskData): Promise<TaskResult> {
     throw new Error("Input must be a serialized array of messages");
   }
   
-  try {
-    switch (provider) {
-      case 'prompt-api':
-        return await handlePromptAPI(messages);
-      case 'webllm':
-        return await handleWebLLM(messages, model, stream, temperature, options);
-      case 'mediapipe':
-        return await handleMediaPipe(messages, model, stream, temperature, options);
-      default:
-        return await handleTransformers(messages, model, dtype, {
-          max_new_tokens,
-          do_sample,
-          temperature,
-          ...options
-        });
-    }
-  } catch (error) {
-    throw error;
+  switch (provider) {
+    case 'prompt-api':
+      return await handlePromptAPI(messages);
+    case 'webllm':
+      return await handleWebLLM(messages, model, stream, temperature, options);
+    case 'mediapipe':
+      return await handleMediaPipe(messages, model, stream, temperature, options);
+    default:
+      return await handleTransformers(messages, model, dtype, {
+        max_new_tokens,
+        do_sample,
+        temperature,
+        ...options
+      });
   }
 }

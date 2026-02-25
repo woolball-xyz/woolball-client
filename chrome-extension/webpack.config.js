@@ -52,7 +52,7 @@ module.exports = {
         { from: 'manifest.json', to: '' },
         { from: 'popup.html', to: '' },
         { from: 'styles', to: 'styles' },
-        { from: 'icon.svg', to: '' },
+        { from: 'icon-128.png', to: '' },
       ],
     }),
     new webpack.DefinePlugin({

@@ -3,7 +3,7 @@
  * Provides utilities to check if the browser is compatible with browser-node
  */
 
-// Definição de tipo para o objeto chrome das extensões do Chrome
+// Type definition for Chrome extension's chrome object
 declare global {
   interface Window {
     chrome?: {
@@ -35,35 +35,31 @@ export function isChromeExtension(): boolean {
            window.chrome.runtime !== undefined && 
            window.chrome.runtime.id !== undefined;
   } catch (e) {
-    // Em ambientes de service worker, acessar window.chrome pode lançar exceções
+    // In service worker environments, accessing window.chrome may throw
     return false;
   }
 }
 
 /**
- * Checks if the current browser is Chrome-based
- * @returns {boolean} True if browser is Chrome-based, false otherwise
+ * Checks if the current browser supports WebGPU or WASM (required for AI inference)
+ * @returns {boolean} True if browser supports WebGPU or WASM, false otherwise
  */
-export function isChromeBased(): boolean {
+export function isSupportedBrowser(): boolean {
   try {
-    // Se estamos em uma extensão Chrome, retornamos true diretamente
+    // Chrome extensions are always supported
     if (isChromeExtension()) {
       return true;
     }
-    
+
     if (typeof window === 'undefined' || !window.navigator) {
-      // Not in a browser environment
       return false;
     }
-    
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    return (
-      userAgent.includes('chrome') || 
-      userAgent.includes('chromium') || 
-      userAgent.includes('edge')
-    );
+
+    // Feature detection: check for WebGPU or WebAssembly support
+    const hasWebGPU = 'gpu' in navigator;
+    const hasWasm = typeof WebAssembly !== 'undefined';
+    return hasWebGPU || hasWasm;
   } catch (e) {
-    // Em ambientes de service worker, acessar window.navigator pode lançar exceções
     return false;
   }
 }
@@ -74,19 +70,22 @@ export function isChromeBased(): boolean {
  */
 export function verifyBrowserCompatibility(): void {
   try {
-    // Se estamos em uma extensão Chrome, não precisamos verificar compatibilidade
+    // Chrome extensions are always compatible
     if (isChromeExtension()) {
       return;
     }
-    
-    if (!isChromeBased()) {
+
+    if (!isSupportedBrowser()) {
       throw new BrowserCompatibilityError(
-        'browser-node is only compatible with Chrome-based browsers. ' +
-        'Please use Chrome, Chromium, Edge, or another Chrome-based browser.'
+        'browser-node requires a browser with WebGPU or WebAssembly support. ' +
+        'Please use Chrome, Edge, Safari, or another modern browser.'
       );
     }
   } catch (e) {
-    // Em ambientes de service worker, não lançamos erro de compatibilidade
+    if (e instanceof BrowserCompatibilityError) {
+      throw e;
+    }
+    // In service worker environments, skip compatibility check
     console.warn('Skipping browser compatibility check in service worker environment');
   }
 }
@@ -99,7 +98,7 @@ export function initBrowserCompatibility(): void {
       verifyBrowserCompatibility();
     }
   } catch (e) {
-    // Em ambientes de service worker, não inicializamos a verificação de compatibilidade
+    // In service worker environments, skip compatibility initialization
     console.warn('Skipping browser compatibility initialization in service worker environment');
   }
 }

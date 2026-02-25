@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Woolball Client",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "Woolball AI",
   "icons": {
-    "128": "icon.svg"
+    "128": "icon-128.png"
   },
   "action": {
     "default_popup": "popup.html",
-    "default_icon": "icon.svg",
+    "default_icon": "icon-128.png",
     "default_width": 500
   },
   "background": {

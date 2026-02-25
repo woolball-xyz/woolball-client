@@ -223,5 +223,5 @@ function notifyPopup(type, data) {
 }
 
 function generateClientId() {
-  return 'chrome-ext-' + Math.random().toString(36).substring(2, 15);
+  return 'chrome-ext-' + crypto.randomUUID();
 }

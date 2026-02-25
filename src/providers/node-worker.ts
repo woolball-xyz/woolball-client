@@ -1,52 +1,52 @@
 import { TaskType, taskProcessors } from '../utils/tasks';
 
-// Definições de tipos para worker_threads
+// Type definitions for worker_threads
 type NodeWorker = any;
 type NodeWorkerOptions = any;
 
-// Variáveis para armazenar os módulos importados dinamicamente
+// Variables to store dynamically imported modules
 let Worker: any;
 let path: any;
 let fs: any;
 
-// Função para verificar se estamos em ambiente Node.js
+// Check if we are in a Node.js environment
 function isNodeEnvironment(): boolean {
-  return typeof process !== 'undefined' && 
-         process.versions != null && 
+  return typeof process !== 'undefined' &&
+         process.versions != null &&
          process.versions.node != null;
 }
 
-// Função para carregar os módulos Node.js sob demanda
+// Load Node.js modules on demand
 async function loadNodeModules() {
-  // Se não estamos em um ambiente Node.js, retorna false imediatamente
+  // If not in a Node.js environment, return false immediately
   if (!isNodeEnvironment()) {
-    console.log('Não estamos em um ambiente Node.js, pulando carregamento de módulos Node.js');
+    console.log('Not in a Node.js environment, skipping Node.js module loading');
     return false;
   }
-  
+
   try {
-    // Importações dinâmicas para módulos Node.js
-    // Usamos uma abordagem que evita que o bundler tente resolver essas importações
-    // durante o build para browser
-    console.log('Tentando carregar worker_threads');
+    // Dynamic imports for Node.js modules
+    // Using an approach that prevents the bundler from resolving these imports
+    // during the browser build
+    console.log('Loading worker_threads');
     const workerThreadsImport = new Function('return import("node:worker_threads")');
     const workerThreads = await workerThreadsImport();
     Worker = workerThreads.Worker;
-    
-    console.log('Tentando carregar path');
+
+    console.log('Loading path');
     const pathImport = new Function('return import("node:path")');
     const pathModule = await pathImport();
     path = pathModule.default;
-    
-    console.log('Tentando carregar fs');
+
+    console.log('Loading fs');
     const fsImport = new Function('return import("node:fs")');
     const fsModule = await fsImport();
     fs = fsModule.default;
-    
-    console.log('Todos os módulos Node.js carregados com sucesso');
+
+    console.log('All Node.js modules loaded successfully');
     return true;
   } catch (error) {
-    console.error('Erro ao carregar módulos Node.js:', error);
+    console.error('Error loading Node.js modules:', error);
     return false;
   }
 }
@@ -68,12 +68,12 @@ export async function createNodeWorker(workerCode: string): Promise<NodeWorker> 
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }
-  
+
   const tempFile = path.join(tempDir, `worker-${Date.now()}.js`);
   fs.writeFileSync(tempFile, workerCode);
-  
+
   const worker = new Worker(tempFile);
-  
+
   // Clean up the temporary file when the worker is done
   worker.on('exit', () => {
     try {
@@ -82,7 +82,7 @@ export async function createNodeWorker(workerCode: string): Promise<NodeWorker> 
       console.error('Error cleaning up temporary worker file:', error);
     }
   });
-  
+
   return worker;
 }
 
@@ -97,31 +97,31 @@ export async function createNodeWorker(workerCode: string): Promise<NodeWorker> 
 export function processWithNodeWorker(type: TaskType, workerCode: string, data: any): Promise<any> {
   return new Promise(async (resolve, reject) => {
     try {
-      // Verifica se estamos em ambiente Node.js
+      // Check if we are in a Node.js environment
       if (!isNodeEnvironment()) {
         return resolve({ error: 'Node.js environment is required for this task' });
       }
 
-      // Cria o worker de forma assíncrona
+      // Create the worker asynchronously
       const worker = await createNodeWorker(workerCode);
-      
+
       worker.on('message', (result : any) => {
         worker.terminate();
         resolve(result);
       });
-      
+
       worker.on('error', (error : any) => {
         worker.terminate();
         const errorMessage = error.message || 'Unknown worker error';
         resolve({ error: errorMessage });
       });
-      
+
       worker.on('exit', (code : any) => {
         if (code !== 0) {
           resolve({ error: `Worker stopped with exit code ${code}` });
         }
       });
-      
+
       // Add the task type to the data
       const taskData = { task: type, ...data };
       worker.postMessage(taskData);
@@ -141,12 +141,12 @@ export function processWithNodeWorker(type: TaskType, workerCode: string, data: 
 export function processWithoutNodeWorker(type: TaskType, data: any): Promise<any> {
   return new Promise(async (resolve) => {
     try {
-      // Verifica se o tipo de tarefa existe
+      // Check if the task type exists
       const processor = taskProcessors[type];
       if (!processor) {
         return resolve({ error: `Unsupported task: ${type}` });
       }
-      // Executa o processador diretamente
+      // Execute the processor directly
       const result = await processor(data);
       resolve(result);
     } catch (error) {
