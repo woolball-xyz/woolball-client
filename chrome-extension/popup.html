@@ -3,38 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=500, initial-scale=1.0">
-  <title>Woolball Client</title>
+  <title>Woolball</title>
   <link rel="stylesheet" href="styles/popup.css">
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>Woolball Client</h1>
-      <p class="subtitle">AI Task Processing</p>
+      <div class="header-title">
+        <svg class="logo" width="28" height="28" viewBox="0 0 100 100" fill="none">
+          <circle cx="50" cy="50" r="44" stroke="#ff9800" stroke-width="4" opacity="0.3"/>
+          <circle cx="50" cy="50" r="30" stroke="#ff9800" stroke-width="3" opacity="0.5"/>
+          <circle cx="50" cy="50" r="16" stroke="#ff9800" stroke-width="2.5" opacity="0.8"/>
+          <circle cx="50" cy="50" r="5" fill="#ff9800"/>
+        </svg>
+        <h1>woolball</h1>
+        <span class="badge">extension</span>
+      </div>
     </div>
-    
+
+    <div class="mode-tabs">
+      <button id="tab-cloud" class="mode-tab active">Cloud</button>
+      <button id="tab-selfhosted" class="mode-tab">Self-hosted</button>
+    </div>
+
+    <div id="cloud-section" class="section">
+      <div class="field">
+        <label for="cloud-api-key">API Key</label>
+        <input type="password" id="cloud-api-key" placeholder="wb_ws_...">
+      </div>
+      <div class="get-key-row">
+        <a href="#" id="get-key-link">Get a key</a>
+      </div>
+      <button id="cloud-connect-btn" class="connect-btn">Connect</button>
+    </div>
+
+    <div id="selfhosted-section" class="section hidden">
+      <div class="field">
+        <label for="selfhosted-url">Server URL</label>
+        <input type="text" id="selfhosted-url" placeholder="ws://localhost:9003/ws">
+      </div>
+      <div class="field">
+        <label for="selfhosted-api-key">API Key <span class="optional">(optional)</span></label>
+        <input type="password" id="selfhosted-api-key" placeholder="wb_ws_...">
+      </div>
+      <button id="selfhosted-connect-btn" class="connect-btn">Connect</button>
+    </div>
+
     <div class="status-container">
       <div class="status-indicator">
         <span id="status-dot" class="status-dot"></span>
         <span id="status-text">Disconnected</span>
       </div>
-      <div class="server-info">
-        <input type="text" id="server-url" placeholder="ws://localhost:9003/ws" value="ws://localhost:9003/ws">
-        <button id="connect-btn">Connect</button>
-      </div>
-      <div class="woolball-status-container">
-        <span id="woolball-status">Woolball not initialized</span>
-      </div>
     </div>
 
     <div class="stats-container">
-      <div class="stat-box centered-stat">
+      <div class="stat-box">
         <span class="stat-label">Processed Tasks</span>
         <span id="tasks-completed" class="stat-value">0</span>
       </div>
     </div>
-
-
   </div>
 
   <script src="popup.js"></script>

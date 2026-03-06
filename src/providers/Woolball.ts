@@ -66,6 +66,10 @@ class Woolball {
         });
     }
 
+    public setWsUrl(url: string): void {
+        this.wsUrl = url;
+    }
+
     public start(): void {
         if (this.wsConnection) {
             console.warn('WebSocket connection already exists');
