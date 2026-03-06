@@ -1,25 +1,69 @@
 const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
-const serverUrlInput = document.getElementById('server-url');
-const connectBtn = document.getElementById('connect-btn');
-const woolballStatusEl = document.getElementById('woolball-status');
 const tasksCompletedEl = document.getElementById('tasks-completed');
+
+const tabCloud = document.getElementById('tab-cloud');
+const tabSelfhosted = document.getElementById('tab-selfhosted');
+const cloudSection = document.getElementById('cloud-section');
+const selfhostedSection = document.getElementById('selfhosted-section');
+
+const cloudApiKeyInput = document.getElementById('cloud-api-key');
+const cloudConnectBtn = document.getElementById('cloud-connect-btn');
+const getKeyLink = document.getElementById('get-key-link');
+
+const selfhostedUrlInput = document.getElementById('selfhosted-url');
+const selfhostedApiKeyInput = document.getElementById('selfhosted-api-key');
+const selfhostedConnectBtn = document.getElementById('selfhosted-connect-btn');
 
 let isConnected = false;
 let isWoolballInitialized = false;
 let tasksCompleted = 0;
+let currentMode = 'cloud';
 
-document.addEventListener('DOMContentLoaded', async () => {
-  chrome.storage.local.get(['serverUrl'], (result) => {
-    if (result.serverUrl) {
-      serverUrlInput.value = result.serverUrl;
+function isValidServerUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'wss:' || parsed.protocol === 'ws:';
+  } catch {
+    return false;
+  }
+}
+
+function switchMode(mode) {
+  currentMode = mode;
+  chrome.storage.local.set({ mode });
+
+  if (mode === 'cloud') {
+    tabCloud.classList.add('active');
+    tabSelfhosted.classList.remove('active');
+    cloudSection.classList.remove('hidden');
+    selfhostedSection.classList.add('hidden');
+  } else {
+    tabCloud.classList.remove('active');
+    tabSelfhosted.classList.add('active');
+    cloudSection.classList.add('hidden');
+    selfhostedSection.classList.remove('hidden');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  chrome.storage.local.get(['mode', 'apiKey', 'serverUrl', 'selfhostedApiKey', 'tasksCompleted', 'isConnected'], (result) => {
+    if (result.mode) {
+      switchMode(result.mode);
     }
-  });
-
-  // Reset task counter when extension is opened
-  resetTaskCounter();
-
-  chrome.storage.local.get(['isConnected'], (result) => {
+    if (result.apiKey) {
+      cloudApiKeyInput.value = result.apiKey;
+    }
+    if (result.serverUrl) {
+      selfhostedUrlInput.value = result.serverUrl;
+    }
+    if (result.selfhostedApiKey) {
+      selfhostedApiKeyInput.value = result.selfhostedApiKey;
+    }
+    if (result.tasksCompleted) {
+      tasksCompleted = result.tasksCompleted;
+      tasksCompletedEl.textContent = tasksCompleted;
+    }
     if (result.isConnected) {
       updateConnectionStatus(true);
       requestPendingUpdates();
@@ -28,115 +72,134 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   chrome.runtime.sendMessage({ action: 'getWoolballStatus' }, (response) => {
     if (response && response.initialized) {
-      updateWoolballStatus(true);
-      
+      isWoolballInitialized = true;
       if (response.connected) {
         updateConnectionStatus(true);
       }
     }
   });
 
-  connectBtn.addEventListener('click', toggleConnection);
+  tabCloud.addEventListener('click', () => switchMode('cloud'));
+  tabSelfhosted.addEventListener('click', () => switchMode('selfhosted'));
+
+  cloudConnectBtn.addEventListener('click', () => handleConnect('cloud'));
+  selfhostedConnectBtn.addEventListener('click', () => handleConnect('selfhosted'));
+
+  getKeyLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: 'https://portal.woolball.xyz#create-key' });
+  });
 });
 
-// Function removed as initialization is now handled in toggleConnection
-
-function updateWoolballStatus(initialized) {
-  isWoolballInitialized = initialized;
-  
-  if (initialized) {
-    woolballStatusEl.textContent = 'Woolball successfully initialized';
-  } else {
-    woolballStatusEl.textContent = 'Woolball not initialized';
-  }
-}
-
-async function toggleConnection() {
+async function handleConnect(mode) {
   if (isConnected) {
     chrome.runtime.sendMessage({ action: 'disconnect' });
     updateConnectionStatus(false);
-  } else {
-    const serverUrl = serverUrlInput.value.trim();
-    if (!serverUrl) {
-      alert('Please enter a valid server URL');
+    return;
+  }
+
+  let serverUrl;
+  let apiKey;
+
+  if (mode === 'cloud') {
+    apiKey = cloudApiKeyInput.value.trim();
+    if (!apiKey || !apiKey.startsWith('wb_ws_')) {
+      alert('Please enter a valid API key (starts with wb_ws_)');
       return;
     }
-    
-    chrome.storage.local.set({ serverUrl });
-    
-    statusDot.classList.remove('connected');
-    statusDot.classList.add('connecting');
-    statusText.textContent = 'Connecting...';
-    connectBtn.disabled = true;
-    woolballStatusEl.textContent = 'Initializing Woolball...';
-    
-    // Initialize Woolball first if needed
-    if (!isWoolballInitialized) {
-      try {
-        await new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage({ action: 'initWoolball' }, (response) => {
-            if (response && response.success) {
-              updateWoolballStatus(true);
-              resolve();
-            } else {
-              reject(new Error(response?.error || 'Failed to initialize Woolball'));
-            }
-          });
-        });
-      } catch (error) {
-        statusDot.classList.remove('connecting');
-        statusText.textContent = 'Connection failed';
-        connectBtn.disabled = false;
-        woolballStatusEl.textContent = 'Woolball initialization failed';
-        alert(`Failed to initialize Woolball: ${error.message}`);
-        return;
-      }
+    serverUrl = 'wss://api.woolball.xyz/ws';
+    chrome.storage.local.set({ apiKey });
+  } else {
+    serverUrl = selfhostedUrlInput.value.trim();
+    if (!serverUrl) {
+      serverUrl = 'ws://localhost:9003/ws';
+      selfhostedUrlInput.value = serverUrl;
     }
-    
-    // Now connect to the server
-    chrome.runtime.sendMessage(
-      { action: 'connect', serverUrl },
-      (response) => {
-        if (response && response.success) {
-          updateConnectionStatus(true);
-        } else {
-          statusDot.classList.remove('connecting');
-          statusText.textContent = 'Connection failed';
-          connectBtn.disabled = false;
-          
-          if (response && response.error) {
-            alert(`Connection failed: ${response.error}`);
+    if (!isValidServerUrl(serverUrl)) {
+      alert('Please enter a valid WebSocket URL (ws:// or wss://)');
+      return;
+    }
+    apiKey = selfhostedApiKeyInput.value.trim() || null;
+    chrome.storage.local.set({ serverUrl });
+    if (apiKey) {
+      chrome.storage.local.set({ selfhostedApiKey: apiKey });
+    }
+  }
+
+  const connectBtn = mode === 'cloud' ? cloudConnectBtn : selfhostedConnectBtn;
+
+  statusDot.classList.remove('connected');
+  statusDot.classList.add('connecting');
+  statusText.textContent = 'Connecting...';
+  connectBtn.disabled = true;
+
+  if (!isWoolballInitialized) {
+    try {
+      await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ action: 'initWoolball' }, (response) => {
+          if (response && response.success) {
+            isWoolballInitialized = true;
+            resolve();
+          } else {
+            reject(new Error(response?.error || 'Failed to initialize Woolball'));
           }
+        });
+      });
+    } catch (error) {
+      statusDot.classList.remove('connecting');
+      statusText.textContent = 'Failed';
+      connectBtn.disabled = false;
+      alert('Woolball initialization failed: ' + error.message);
+      return;
+    }
+  }
+
+  chrome.runtime.sendMessage(
+    { action: 'connect', serverUrl, apiKey },
+    (response) => {
+      if (response && response.success) {
+        updateConnectionStatus(true);
+      } else {
+        statusDot.classList.remove('connecting');
+        statusText.textContent = 'Failed';
+        connectBtn.disabled = false;
+        if (response && response.error) {
+          alert('Connection failed: ' + response.error);
         }
       }
-    );
-  }
+    }
+  );
 }
 
 function updateConnectionStatus(connected) {
   isConnected = connected;
   chrome.storage.local.set({ isConnected });
-  
+
+  const connectBtn = currentMode === 'cloud' ? cloudConnectBtn : selfhostedConnectBtn;
+
   if (connected) {
     statusDot.classList.remove('connecting');
     statusDot.classList.add('connected');
     statusText.textContent = 'Connected';
-    connectBtn.textContent = 'Disconnect';
-    connectBtn.classList.add('disconnect');
-    connectBtn.disabled = false;
+    cloudConnectBtn.textContent = 'Disconnect';
+    cloudConnectBtn.classList.add('disconnect');
+    cloudConnectBtn.disabled = false;
+    selfhostedConnectBtn.textContent = 'Disconnect';
+    selfhostedConnectBtn.classList.add('disconnect');
+    selfhostedConnectBtn.disabled = false;
   } else {
     statusDot.classList.remove('connected', 'connecting');
     statusText.textContent = 'Disconnected';
-    connectBtn.textContent = 'Connect';
-    connectBtn.classList.remove('disconnect');
-    connectBtn.disabled = false;
+    cloudConnectBtn.textContent = 'Connect';
+    cloudConnectBtn.classList.remove('disconnect');
+    cloudConnectBtn.disabled = false;
+    selfhostedConnectBtn.textContent = 'Connect';
+    selfhostedConnectBtn.classList.remove('disconnect');
+    selfhostedConnectBtn.disabled = false;
   }
 }
 
-
-
 function addTaskToHistory(task) {
-  // Increment task counter only once per task
   tasksCompleted++;
   tasksCompletedEl.textContent = tasksCompleted;
   chrome.storage.local.set({ tasksCompleted });
@@ -145,8 +208,6 @@ function addTaskToHistory(task) {
 function requestPendingUpdates() {
   chrome.runtime.sendMessage({ action: 'getPendingUpdates' }, (response) => {
     if (response && response.updates && response.updates.length > 0) {
-      console.log(`Processing ${response.updates.length} pending updates`);
-      
       response.updates.forEach(update => {
         processMessage(update);
       });
@@ -156,16 +217,12 @@ function requestPendingUpdates() {
 
 function processMessage(message) {
   if (!message || !message.type) return;
-  
+
   switch (message.type) {
     case 'connectionStatus':
       updateConnectionStatus(message.connected);
       break;
-    case 'woolballStatus':
-      updateWoolballStatus(message.initialized);
-      break;
     case 'taskCompleted':
-      // Task count is incremented in addTaskToHistory
       if (message.task) {
         addTaskToHistory(message.task);
       }
@@ -176,13 +233,3 @@ function processMessage(message) {
 chrome.runtime.onMessage.addListener((message) => {
   processMessage(message);
 });
-
-// Reset task counter when extension is opened
-function resetTaskCounter() {
-  chrome.storage.local.get(['tasksCompleted'], (result) => {
-    if (result.tasksCompleted) {
-      tasksCompleted = result.tasksCompleted;
-      tasksCompletedEl.textContent = tasksCompleted;
-    }
-  });
-}

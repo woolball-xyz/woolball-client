@@ -11,7 +11,7 @@ let pendingUpdates = [];
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Woolball extension installed');
-  
+
   chrome.storage.local.get(['clientId'], (result) => {
     if (!result.clientId) {
       clientId = generateClientId();
@@ -21,7 +21,7 @@ chrome.runtime.onInstalled.addListener(() => {
     }
     console.log('Client ID:', clientId);
   });
-  
+
   loadPendingUpdates();
 });
 
@@ -42,13 +42,13 @@ function loadPendingUpdates() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'initWoolball') {
     initializeWoolball(sendResponse);
-    return true; 
+    return true;
   } else if (message.action === 'connect') {
     if (!isWoolballInitialized) {
-      sendResponse({ success: false, error: 'Woolball not initialized. Click "Initialize Woolball" first.' });
+      sendResponse({ success: false, error: 'Woolball not initialized.' });
     } else {
-      connectToServer(message.serverUrl, sendResponse);
-      return true; 
+      connectToServer(message.serverUrl, message.apiKey, sendResponse);
+      return true;
     }
   } else if (message.action === 'disconnect') {
     disconnectFromServer();
@@ -56,9 +56,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'getWoolballStatus') {
     sendResponse({ initialized: isWoolballInitialized, connected: isConnected });
   } else if (message.action === 'getPendingUpdates') {
-    const updates = [...pendingUpdates]; 
+    const updates = [...pendingUpdates];
     sendResponse({ updates });
-    
+
     pendingUpdates = [];
     chrome.storage.local.set({ pendingUpdates: [] });
     console.log(`Sent ${updates.length} pending updates to popup`);
@@ -69,12 +69,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function initializeWoolball(sendResponse) {
   try {
     console.log('Initializing Woolball client...');
-    
+
     if (woolballClient) {
       console.log('Disconnecting existing client...');
       disconnectFromServer();
     }
-    
+
     if (!clientId) {
       console.log('Loading client ID from storage...');
       const result = await chrome.storage.local.get(['clientId']);
@@ -82,22 +82,18 @@ async function initializeWoolball(sendResponse) {
       chrome.storage.local.set({ clientId });
       console.log('Using client ID:', clientId);
     }
-    
+
     console.log('Importing Woolball...');
-    
-    if (typeof document === 'undefined') {
-      console.log('Service worker environment detected');
-    }
-    
+
     woolballClient = new Woolball(clientId, null, {
       environment: 'extension'
     });
-    
+
     console.log('Woolball client created successfully');
     isWoolballInitialized = true;
-    
+
     sendResponse({ success: true });
-    
+
     console.log('Woolball initialized successfully');
   } catch (error) {
     console.error('Error initializing Woolball:', error);
@@ -106,29 +102,41 @@ async function initializeWoolball(sendResponse) {
   }
 }
 
-async function connectToServer(serverUrl, sendResponse) {
+async function connectToServer(serverUrl, apiKey, sendResponse) {
   try {
     console.log('Connecting to server:', serverUrl);
-    
+
     if (!woolballClient) {
-      sendResponse({ success: false, error: 'Woolball client not initialized. Click "Initialize Woolball" first.' });
+      sendResponse({ success: false, error: 'Woolball client not initialized.' });
       return;
     }
-    
+
     try {
-      woolballClient.wsUrl = serverUrl;
-      
+      // When an API key is provided, we need to recreate the Woolball instance
+      // with the key embedded in the clientId as a query param, since clientId
+      // is immutable after construction
+      if (apiKey) {
+        woolballClient.destroy();
+        const wsClientId = `${clientId}?key=${apiKey}`;
+        woolballClient = new Woolball(wsClientId, null, {
+          environment: 'extension'
+        });
+        isWoolballInitialized = true;
+      }
+
+      woolballClient.setWsUrl(serverUrl);
+
       console.log('Starting connection...');
       woolballClient.start();
-      
+
       console.log('Woolball client started successfully');
-      
+
       setupEventListeners();
-      
+
       isConnected = true;
-      
+
       sendResponse({ success: true });
-      
+
       console.log(`Successfully connected to Woolball server at ${serverUrl}`);
     } catch (woolballError) {
       console.error('Woolball connection error:', woolballError);
@@ -148,7 +156,7 @@ function disconnectFromServer() {
       woolballClient.destroy();
       isConnected = false;
       console.log('Disconnected from server');
-      
+
       notifyPopup('connectionStatus', { connected: false });
     } catch (error) {
       console.error('Error disconnecting from server:', error);
@@ -163,7 +171,7 @@ function setupEventListeners() {
   }
 
   console.log('Setting up Woolball client event listeners...');
-  
+
   try {
     woolballClient.on('started', (data) => {
       console.log('Task started:', data);
@@ -186,20 +194,17 @@ function setupEventListeners() {
 
 function notifyPopup(type, data) {
   try {
-    // Adapt message format for simplified interface
     let message;
     if (type === 'taskCompleted') {
       message = { type, task: data.task, timestamp: Date.now() };
     } else if (type === 'connectionStatus') {
       message = { type, connected: data.connected, timestamp: Date.now() };
-    } else if (type === 'woolballStatus') {
-      message = { type, initialized: data.initialized, timestamp: Date.now() };
     } else {
       message = { type, data, timestamp: Date.now() };
     }
-    
+
     console.log('Sending message to popup:', message);
-    
+
     chrome.runtime.sendMessage(message)
       .then(() => {
         console.log('Message sent successfully to popup');
@@ -207,11 +212,11 @@ function notifyPopup(type, data) {
       .catch(error => {
         console.log('Popup not open, storing update in cache:', message);
         pendingUpdates.push(message);
-        
+
         if (pendingUpdates.length > 100) {
           pendingUpdates = pendingUpdates.slice(-100);
         }
-        
+
         chrome.storage.local.set({ pendingUpdates });
       });
   } catch (error) {
